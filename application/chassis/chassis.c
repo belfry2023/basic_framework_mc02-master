@@ -76,7 +76,7 @@ void ChassisInit()
             .angle_feedback_source = MOTOR_FEED,
             .speed_feedback_source = MOTOR_FEED,
             .outer_loop_type = SPEED_LOOP,
-            .close_loop_type = CURRENT_LOOP,
+            .close_loop_type = SPEED_LOOP | CURRENT_LOOP,
         },
         .motor_type = M3508,
     };
