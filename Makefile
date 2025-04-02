@@ -147,7 +147,6 @@ application/gimbal/gimbal.c \
 application/chassis/chassis.c \
 application/shoot/shoot.c \
 application/cmd/robot_cmd.c \
-application/chassis/balance.c \
 application/robot.c \
 Core/Src/i2c.c
 

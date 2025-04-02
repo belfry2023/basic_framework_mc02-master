@@ -11,7 +11,6 @@
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
 #include "chassis.h"
-#include "balance.h"
 #endif
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
