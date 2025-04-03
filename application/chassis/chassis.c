@@ -139,7 +139,7 @@ void ChassisInit()
 
     Buzzer_config_s buzzer = {
         .alarm_level = ALARM_LEVEL_HIGH,
-        .loudness = 0.1,
+        .loudness = 0.5,
         .octave = OCTAVE_2,
     };
     buzzerc = BuzzerRegister(&buzzer);
