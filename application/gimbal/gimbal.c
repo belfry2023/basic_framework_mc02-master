@@ -114,9 +114,9 @@ void GimbalInit()
 static void change_spd_ford()   
 {
     if(pitch_motor->motor_controller.angle_PID.Err > 0)
-        speed_forward = pitch_motor->motor_controller.angle_PID.Err > 0.5 ? (4 * cos(gimba_IMU_data->Roll*PI/360) + 10) : 0;
+        speed_forward = pitch_motor->motor_controller.angle_PID.Err > 0.5 ? (5 * cos(gimba_IMU_data->Roll*PI/360) + 10) : 0;
     else
-        speed_forward = pitch_motor->motor_controller.angle_PID.Err < -0.5 ? (4 * cos(gimba_IMU_data->Roll*PI/360) - 10) : 0;
+        speed_forward = pitch_motor->motor_controller.angle_PID.Err < -0.5 ? (5 * cos(gimba_IMU_data->Roll*PI/360) - 10) : 0;
 }
 /* 机器人云台控制核心任务,后续考虑只保留IMU控制,不再需要电机的反馈 */
 void GimbalTask()
