@@ -336,9 +336,7 @@ void DJIMotorControl()
         // 获取最终输出
         set = (int16_t)pid_ref;
         if(motor->stop_flag == MOTOR_POWER)
-        {
             set = motor->set_value; // 直接使用电机的设定值,而不是pid_ref
-        }
         // 分组填入发送数据
         group = motor->sender_group;
         num = motor->message_num;

@@ -33,6 +33,8 @@ static 	float32_t constant = 4.081f;
 
 static PIDInstance power_buffer_pid;
 
+/// @brief 
+/// @param  
 void chassis_power_control_init(void)
 {
     PID_Init_Config_s pid_cfg = {
@@ -50,14 +52,11 @@ void chassis_power_control_init(void)
     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
 }
 
+
+/// @brief 
+/// @param  
 void chassis_power_control(void)
 {
-	// get_chassis_power_and_buffer(&chassis_power, &chassis_power_buffer);
-	// PID_calc(&chassis_power_control->buffer_pid, chassis_power_buffer, 30);
-	// get_chassis_max_power(&max_power_limit);
-	// input_power = max_power_limit - chassis_power_control->buffer_pid.out; // Input power floating at maximum power
-
-	// CAN_CMD_CAP(input_power); // set the input power of capacitor controller
 
     SubGetMessage(chassis_feed_sub, (void *)&chassis_fetch_data);
 
@@ -112,10 +111,10 @@ void chassis_power_control(void)
 				else if (chassis_fetch_data.motor_current[i] > 0) // Selection of the calculation formula according to the direction of the original moment
 				{
 					float32_t temp = (-b + sqrt(inside)) / (2 * a);
-					if (temp > 16000)
+					if (temp > 15000)
 					{
 						// chassis_fetch_data.motor_current[i] = 16000;
-						chassis_cmd_send.motor_current[i] = 16000;
+						chassis_cmd_send.motor_current[i] = 15000;
 					}
 					else
 						chassis_cmd_send.motor_current[i] = temp;
@@ -123,9 +122,9 @@ void chassis_power_control(void)
 				else
 				{
 					float32_t temp = (-b - sqrt(inside)) / (2 * a);
-					if (temp < -16000)
+					if (temp < -15000)
 					{
-						chassis_cmd_send.motor_current[i] = -16000;
+						chassis_cmd_send.motor_current[i] = -15000;
 					}
 					else
 						chassis_cmd_send.motor_current[i] = temp;
@@ -133,5 +132,5 @@ void chassis_power_control(void)
 			}
 		}
 	}
-	PubSendMessage(chassis_cmd_pub, (void *)&chassis_cmd_send);
+	PubPushMessage(chassis_cmd_pub, (void *)&chassis_cmd_send);
 }
