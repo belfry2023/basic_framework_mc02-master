@@ -251,6 +251,11 @@ void DJIMotorEnable(DJIMotorInstance *motor)
     motor->stop_flag = MOTOR_ENALBED;
 }
 
+void DJIMotorEnablePower(DJIMotorInstance *motor)
+{
+    motor->stop_flag = MOTOR_POWER;
+}
+
 /* 修改电机的实际闭环对象 */
 void DJIMotorOuterLoop(DJIMotorInstance *motor, Closeloop_Type_e outer_loop)
 {
@@ -261,6 +266,11 @@ void DJIMotorOuterLoop(DJIMotorInstance *motor, Closeloop_Type_e outer_loop)
 void DJIMotorSetRef(DJIMotorInstance *motor, float ref)
 {
     motor->motor_controller.pid_ref = ref;
+}
+
+void DJIMotorSetValue(DJIMotorInstance *motor, float ref)
+{
+    motor->set_value = ref;
 }
 
 // 为所有电机实例计算三环PID,发送控制报文
@@ -325,7 +335,10 @@ void DJIMotorControl()
 
         // 获取最终输出
         set = (int16_t)pid_ref;
-
+        if(motor->stop_flag == MOTOR_POWER)
+        {
+            set = motor->set_value; // 直接使用电机的设定值,而不是pid_ref
+        }
         // 分组填入发送数据
         group = motor->sender_group;
         num = motor->message_num;

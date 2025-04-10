@@ -175,78 +175,22 @@ static void LimitChassisOutput()
     // 功率限制待添加
     // referee_data->PowerHeatData.chassis_power;
     // referee_data->PowerHeatData.chassis_power_buffer;
-    uint16_t tempPower = 4500;
-    float times = 1;
-    switch (referee_data->GameRobotState.robot_level)
-    {
-        case 0:
-            tempPower = 4500;
-            times = 1.0;
-            /* code */
-            break;
-        case 1:
-            tempPower = 4500;
-            times = 1.0;
-            /* code */
-            break;    
-        case 2:
-            tempPower = 5000;
-            times = 1.1;
-            /* code */
-            break;
-        case 3:
-            tempPower = 5500;
-            times = 1.2;
-            /* code */
-            break;
-        case 4:
-            tempPower = 6000;
-            times = 1.3;
-            /* code */
-            break;
-        case 5:
-            tempPower = 6500;
-            times = 1.4;
-            /* code */
-            break;
-        case 6:
-            tempPower = 7000;
-            times = 1.5;
-            /* code */
-            break;
-        case 7:
-            tempPower = 7500;
-            times = 1.6;
-            /* code */
-            break;
-        case 8:
-            tempPower = 8000;
-            times = 1.7;
-            /* code */
-            break;  
-        case 9:
-            tempPower = 9000;
-            times = 1.8;
-            /* code */
-            break; 
-        case 10:
-            tempPower = 10000;
-            times = 2.0;
-            /* code */
-            break; 
-        default:
-            break;
-    }
+    uint16_t tempPower = chassis_cmd_recv.cap_power * 100;
     uint8_t data[8];
     data[0] = tempPower >> 8 ;
     data[1] = tempPower;
     SuperCapSend(cap, data);
     
     // 完成功率限制后进行电机参考输入设定
-    DJIMotorSetRef(motor_lf, vt_lf * times);
-    DJIMotorSetRef(motor_rf, vt_rf * times);
-    DJIMotorSetRef(motor_lb, vt_lb * times);
-    DJIMotorSetRef(motor_rb, vt_rb * times);
+    DJIMotorSetRef(motor_lf, vt_lf);
+    DJIMotorSetRef(motor_rf, vt_rf);
+    DJIMotorSetRef(motor_lb, vt_lb);
+    DJIMotorSetRef(motor_rb, vt_rb);
+
+    DJIMotorSetValue(motor_lf, chassis_cmd_recv.motor_current[0]);
+    DJIMotorSetValue(motor_rf, chassis_cmd_recv.motor_current[1]);
+    DJIMotorSetValue(motor_lb, chassis_cmd_recv.motor_current[2]);
+    DJIMotorSetValue(motor_rb, chassis_cmd_recv.motor_current[3]);
 }
 
 /**
@@ -284,10 +228,14 @@ void ChassisTask()
     }
     else
     { // 正常工作
-        DJIMotorEnable(motor_lf);
-        DJIMotorEnable(motor_rf);
-        DJIMotorEnable(motor_lb);
-        DJIMotorEnable(motor_rb);
+        // DJIMotorEnable(motor_lf);
+        // DJIMotorEnable(motor_rf);
+        // DJIMotorEnable(motor_lb);
+        // DJIMotorEnable(motor_rb);
+        DJIMotorEnablePower(motor_lf);
+        DJIMotorEnablePower(motor_rf);
+        DJIMotorEnablePower(motor_lb);
+        DJIMotorEnablePower(motor_rb);
         buzzerc->alarm_state = ALARM_OFF;
     }
 
@@ -331,7 +279,6 @@ void ChassisTask()
     // // 当前只做了17mm热量的数据获取,后续根据robot_def中的宏切换双枪管和英雄42mm的情况
     // chassis_feedback_data.bullet_speed = referee_data->GameRobotState.shooter_id1_17mm_speed_limit;
     // chassis_feedback_data.rest_heat = referee_data->PowerHeatData.shooter_heat0;
-    chassis_feedback_data.real_wz = chassis_cmd_recv.wz / REAL_WZ_RAT;
 
     ui_data.chassis_mode = chassis_cmd_recv.chassis_mode;
     ui_data.friction_mode = chassis_cmd_recv.friction_mode;
@@ -344,7 +291,26 @@ void ChassisTask()
     //referee_data->GameRobotState.robot_level
     //referee_data->GameRobotState.shooter_barrel_heat_limit
     //referee_data->PowerHeatData.shooter_17mm_1_barrel_heat
+
     chassis_feedback_data.rest_heat = (referee_data->GameRobotState.shooter_barrel_heat_limit - referee_data->PowerHeatData.shooter_17mm_1_barrel_heat) / referee_data->GameRobotState.shooter_barrel_heat_limit;
+
+    chassis_feedback_data.chassis_level = referee_data->GameRobotState.robot_level;
+    chassis_feedback_data.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
+
+    chassis_feedback_data.chassis_power = cap->cap_msg.power;
+    chassis_feedback_data.chassis_cap_current = cap->cap_msg.current;
+
+    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps;
+    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps;
+    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps;
+    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps;
+
+    chassis_feedback_data.motor_current[0] = motor_lf->motor_controller.current_PID.Output;
+    chassis_feedback_data.motor_current[1] = motor_rf->motor_controller.current_PID.Output;
+    chassis_feedback_data.motor_current[2] = motor_lb->motor_controller.current_PID.Output;
+    chassis_feedback_data.motor_current[3] = motor_rb->motor_controller.current_PID.Output;
+
+    chassis_feedback_data.real_wz = chassis_cmd_recv.wz / REAL_WZ_RAT;
     // 推送反馈消息
 #ifdef ONE_BOARD
     PubPushMessage(chassis_pub, (void *)&chassis_feedback_data);

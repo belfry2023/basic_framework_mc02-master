@@ -57,6 +57,8 @@ typedef struct
     uint8_t sender_group;
     uint8_t message_num;
 
+    int16_t set_value; // 发送的设定值,注意是电流值,不是PWM值
+
     Motor_Type_e motor_type;        // 电机类型
     Motor_Working_Type_e stop_flag; // 启停标志
 
@@ -92,6 +94,12 @@ DJIMotorInstance *DJIMotorInit(Motor_Init_Config_s *config);
  */
 void DJIMotorSetRef(DJIMotorInstance *motor, float ref);
 
+
+/// @brief 
+/// @param motor 
+/// @param ref 
+void DJIMotorSetValue(DJIMotorInstance *motor, float ref);
+
 /**
  * @brief 切换反馈的目标来源,如将角速度和角度的来源换为IMU(小陀螺模式常用)
  *
@@ -118,6 +126,13 @@ void DJIMotorStop(DJIMotorInstance *motor);
  *
  */
 void DJIMotorEnable(DJIMotorInstance *motor);
+
+/**
+ * @brief 启动电机,此时电机会响应设定值
+ *        初始化时不需要此函数,因为stop_flag的默认值为0
+ *
+ */
+void DJIMotorEnablePower(DJIMotorInstance *motor);
 
 /**
  * @brief 修改电机闭环目标(外层闭环)

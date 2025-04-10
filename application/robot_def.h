@@ -45,7 +45,7 @@
 #define GYRO2GIMBAL_DIR_YAW 1   // 陀螺仪数据相较于云台的yaw的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_PITCH -1 // 陀螺仪数据相较于云台的pitch的方向,1为相同,-1为相反
 #define GYRO2GIMBAL_DIR_ROLL -1  // 陀螺仪数据相较于云台的roll的方向,1为相同,-1为相反
-
+#define HUBS_NUMBER 4 // 轮子数量,底盘是四轮全向轮,如果是两轮差速轮需要修改为2,如果是平衡步兵需要修改为2
 
 
 // 检查是否出现主控板定义冲突,只允许一个开发板定义存在,否则编译会自动报错
@@ -126,11 +126,12 @@ typedef enum
     LOAD_BURSTFIRE, // 连发
 } loader_mode_e;
 
-// 功率限制,从裁判系统获取,是否有必要保留?
+
 typedef struct
 { // 功率控制
     float chassis_power_mx;
 } Chassis_Power_Data_s;
+
 
 /* ----------------CMD应用发布的控制数据,应当由gimbal/chassis/shoot订阅---------------- */
 /**
@@ -146,12 +147,13 @@ typedef struct
     float wz;           // 旋转速度     w
     float offset_angle; // 底盘和归中位置的夹角
     chassis_mode_e chassis_mode;
-    int chassis_speed_buff;
+    uint16_t chassis_power_limit; // 底盘功率限制,单位W
     // UI部分
     //  ...
     int friction_mode;
     int bullet_speed;
-
+    float motor_current[HUBS_NUMBER]; // 电机电流
+    uint16_t cap_power;
 } Chassis_Ctrl_Cmd_s;
 
 // cmd发布的云台控制数据,由gimbal订阅
@@ -193,11 +195,15 @@ typedef struct
     // float real_vx;
     // float real_vy;
     float real_wz;
-
     float rest_heat;           // 剩余枪口热量
+    float motor_speed[HUBS_NUMBER]; // 电机速度
+    float motor_current[HUBS_NUMBER]; // 电机电流
+    uint8_t chassis_level;
+    uint16_t chassis_power_limit;
+    uint16_t chassis_power;
+    uint16_t chassis_cap_current;
     Bullet_Speed_e bullet_speed; // 弹速限制
     Enemy_Color_e enemy_color;   // 0 for blue, 1 for red
-
 } Chassis_Upload_Data_s;
 
 typedef struct
