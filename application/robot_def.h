@@ -130,6 +130,7 @@ typedef enum
 typedef struct
 { // 功率控制
     float chassis_power_mx;
+    float motor_current[HUBS_NUMBER]; // 电机电流
 } Chassis_Power_Data_s;
 
 

@@ -26,8 +26,10 @@ attitude_t *Chassis_IMU_data;
 
 static Publisher_t *chassis_pub;                    // 用于发布底盘的数据
 static Subscriber_t *chassis_sub;                   // 用于订阅底盘的控制命令
+static Subscriber_t *chassis_power_sub;         // 用于订阅底盘的反馈数据
 #endif                                              // !ONE_BOARD
 static Chassis_Ctrl_Cmd_s chassis_cmd_recv;         // 底盘接收到的控制命令
+static Chassis_Power_Data_s chassis_power_recv;
 static Chassis_Upload_Data_s chassis_feedback_data; // 底盘回传的反馈数据
 
 static referee_info_t *referee_data;       // 用于获取裁判系统的数据
@@ -145,6 +147,7 @@ void ChassisInit()
     buzzerc = BuzzerRegister(&buzzer);
 #ifdef ONE_BOARD // 单板控制整车,则通过pubsub来传递消息
     chassis_sub = SubRegister("chassis_cmd", sizeof(Chassis_Ctrl_Cmd_s));
+    chassis_power_sub = SubRegister("power_cmd", sizeof(Chassis_Power_Data_s));
     chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
 #endif // ONE_BOARD
@@ -212,6 +215,7 @@ void ChassisTask()
     // 获取新的控制信息
 #ifdef ONE_BOARD
     SubGetMessage(chassis_sub, &chassis_cmd_recv);
+    SubGetMessage(chassis_power_sub, &chassis_power_recv);
     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
 #endif
 #ifdef CHASSIS_BOARD
@@ -297,13 +301,16 @@ void ChassisTask()
     chassis_feedback_data.chassis_level = referee_data->GameRobotState.robot_level;
     chassis_feedback_data.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
 
+    chassis_feedback_data.chassis_level = 1;
+    chassis_feedback_data.chassis_power_limit = 45; // 20A
+
     chassis_feedback_data.chassis_power = cap->cap_msg.power;
     chassis_feedback_data.chassis_cap_current = cap->cap_msg.current;
 
-    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps;
-    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps;
-    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps;
-    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps;
+    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps/19;
+    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps/19;
+    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps/19;
+    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps/19;
 
     chassis_feedback_data.motor_current[0] = motor_lf->motor_controller.current_PID.Output;
     chassis_feedback_data.motor_current[1] = motor_rf->motor_controller.current_PID.Output;
