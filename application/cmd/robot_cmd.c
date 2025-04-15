@@ -174,17 +174,17 @@ static void RemoteControlSet()
     gimbal_cmd_send.pitch = gimbal_cmd_send.pitch < PITCH_MAX_ANGLE ? gimbal_cmd_send.pitch : PITCH_MAX_ANGLE;
     // 底盘参数,目前没有加入小陀螺(调试似乎暂时没有必要),系数需要调整
     if(rc_data[TEMP].rc.rocker_l1 || rc_data[TEMP].rc.rocker_l_ || switch_is_down(rc_data[TEMP].rc.switch_left)){
-        chassis_cmd_send.vx = +26.0f * (float)rc_data[TEMP].rc.rocker_l_; // _水平方向
-        chassis_cmd_send.vy = +26.0f * (float)rc_data[TEMP].rc.rocker_l1; // 1数值方向
+        chassis_cmd_send.vx = + 26 * (float)rc_data[TEMP].rc.rocker_l_; // _水平方向
+        chassis_cmd_send.vy = + 26 * (float)rc_data[TEMP].rc.rocker_l1; // 1数值方向
     }
     if (switch_is_up(rc_data[TEMP].rc.switch_right)) 
     {
-        chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;     
-    }                                              
+        chassis_cmd_send.chassis_mode = CHASSIS_ROTATE;   
+    }
     else if (switch_is_mid(rc_data[TEMP].rc.switch_right))
     {
         chassis_cmd_send.chassis_mode = CHASSIS_FOLLOW_GIMBAL_YAW;
-    } 
+    }
     else if (switch_is_down(rc_data[TEMP].rc.switch_right))
     {
         chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW; 

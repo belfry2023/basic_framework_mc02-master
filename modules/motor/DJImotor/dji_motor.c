@@ -284,7 +284,6 @@ void DJIMotorControl()
     Motor_Controller_s *motor_controller;   // 电机控制器
     DJI_Motor_Measure_s *measure;           // 电机测量值
     float pid_measure, pid_ref;             // 电机PID测量值和设定值
-
     // 遍历所有电机实例,进行串级PID的计算并设置发送报文的值
     for (size_t i = 0; i < idx; ++i)
     { // 减小访存开销,先保存指针引用
@@ -335,8 +334,7 @@ void DJIMotorControl()
 
         // 获取最终输出
         set = (int16_t)pid_ref;
-        if(motor->stop_flag == MOTOR_POWER)
-            set = motor->set_value; // 直接使用电机的设定值,而不是pid_ref
+        
         // 分组填入发送数据
         group = motor->sender_group;
         num = motor->message_num;

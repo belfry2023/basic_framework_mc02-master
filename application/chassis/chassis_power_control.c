@@ -16,19 +16,19 @@ static Chassis_Power_Data_s chassis_power_send;      // 发送给底盘应用的
 static Chassis_Upload_Data_s chassis_fetch_data; // 从底盘应用接收的反馈信息信息,底盘功率枪口热量与底盘运动状态等
 static uint8_t cap_state = 0; // capacitor state
 
-static uint16_t max_power_limit = 40;
+static uint16_t max_power_limit = 10;
 static float32_t chassis_max_power = 0;
 static float input_power = 0;		 // input power from battery (referee system)
-static float initial_give_power[4]; // initial power from PID calculation
-static float initial_total_power = 0;
+static float allocate_give_power[4]; // initial power from PID calculation
+static float allocate_total_power = 0;
 
-static float32_t scaled_give_power[4];
+static float32_t distribut_give_power[4];
 static float32_t chassis_power = 0.0f;
 static float32_t chassis_power_buffer = 0.0f;
 
-static 	float32_t toque_coefficient = 1.99688994e-6f; // (20/16384)*(0.3)*(187/3591)/9.55
-static 	float32_t a = 1.23e-07;						 // k1
-static 	float32_t k2 = 1.453e-07;					 // k2
+static 	float32_t toque_coefficient = 0.00000199688994; // (20/16384)*(0.3)*(187/3591)/9.55
+static 	float32_t k1 = 0.000000123;						 // k1
+static 	float32_t k2 = 0.0000001453;					 // k2
 static 	float32_t constant = 4.081f;
 
 static PIDInstance power_buffer_pid;
@@ -57,66 +57,30 @@ void chassis_power_control_init(void)
 /// @param  
 void chassis_power_control(void)
 {
-
     SubGetMessage(chassis_feed_sub, (void *)&chassis_fetch_data);
-
-    chassis_power_buffer += (chassis_fetch_data.chassis_power - chassis_max_power) / 200;
-    PIDCalculate(&power_buffer_pid, chassis_power, 30);
-	chassis_max_power = chassis_fetch_data.chassis_power_limit; // get the max power from referee system
-	input_power = chassis_max_power - power_buffer_pid.Output; // Input power floating at maximum power
-
-	chassis_power_send.chassis_power_limit = input_power; // set the max power to chassis
-
-	if(chassis_fetch_data.chassis_cap_current > 5)
+	for(size_t i = 0;i < 4; i++)
 	{
-		if (cap_state == 0)
-			chassis_max_power = input_power + 5; // Slightly greater than the maximum power, avoiding the capacitor being full all the time and improving energy utilization
-		else
-			chassis_max_power = input_power + 200;
+        allocate_give_power[i] = toque_coefficient * chassis_fetch_data.motor_current[i] * chassis_fetch_data.motor_speed[i] + chassis_fetch_data.motor_current[i] * chassis_fetch_data.motor_current[i] * k1 + chassis_fetch_data.motor_speed[i] * k2 * chassis_fetch_data.motor_speed[i] + constant;
+        allocate_total_power += allocate_give_power[i];
 	}
-
-	for(uint8_t i = 0; i < 4; i++)
+    float32_t power_time = chassis_fetch_data.chassis_power_limit / allocate_total_power;
+	for(size_t i = 0; i < 4; i++)
 	{
-		initial_give_power[i] = chassis_fetch_data.motor_current[i] * toque_coefficient * chassis_fetch_data.motor_speed[i] 
-		+ k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] 
-		+ a * chassis_fetch_data.motor_current[i] * chassis_fetch_data.motor_current[i]
-		+ constant;
-		if(initial_give_power < 0)
-		{
-			continue;
-			initial_total_power += initial_give_power[i];
-		}
-		if(initial_total_power > chassis_max_power)
-		{
-			float32_t power_scale = chassis_max_power;
-			for(uint8_t i = 0; i < 4; i++)
-			{
-				scaled_give_power[i] = initial_give_power[i] * power_scale;
-				if(scaled_give_power[i] < 0)
-					continue;
-				float32_t b = toque_coefficient * chassis_fetch_data.motor_speed[i];
-				float32_t c = a * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] - scaled_give_power[i] + constant;
-				float32_t inside = b * b - 4 * a * c;
-				if (inside < 0)
-					continue;
-				else if (chassis_fetch_data.motor_current[i] > 0) // Selection of the calculation formula according to the direction of the original moment
-				{
-					float32_t temp = (-b + sqrt(inside)) / (2 * a);
-					if (temp > 15000)
-						chassis_power_send.motor_current[i] = 15000;
-					else
-						chassis_power_send.motor_current[i] = temp;
-				}
-				else
-				{
-					float32_t temp = (-b - sqrt(inside)) / (2 * a);
-					if (temp < -15000)
-						chassis_power_send.motor_current[i] = -15000;
-					else
-						chassis_power_send.motor_current[i] = temp;
-				}
-			}
-		}
+        distribut_give_power[i] = allocate_give_power[i] * power_time;
+		float32_t a = k1;
+		float32_t b = chassis_fetch_data.motor_speed[i] * toque_coefficient;
+		float32_t c = k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] + constant - distribut_give_power[i];
+        if((chassis_fetch_data.motor_speed[i] > 0 && chassis_fetch_data.motor_current[i] > 0) || (chassis_fetch_data.motor_speed[i] < 0 && chassis_fetch_data.motor_current[i] < 0))
+        {
+            chassis_power_send.motor_current_up[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+            chassis_power_send.motor_current_down[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+        }
+        else
+        {
+            chassis_power_send.motor_current_down[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+            chassis_power_send.motor_current_up[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+        }
 	}
+    
 	PubPushMessage(chassis_power_pub, (void *)&chassis_power_send);
 }

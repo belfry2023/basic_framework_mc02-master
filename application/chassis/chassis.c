@@ -70,8 +70,8 @@ void ChassisInit()
                 .Kd = 0,
                 .IntegralLimit = 3000,
                 .Improve = PID_Trapezoid_Intergral | PID_Integral_Limit | PID_Derivative_On_Measurement,
-                .MaxOut = 15000,
-                .MaxOut_ = -15000
+                .MaxOut = 3000,
+                .MaxOut_ = -3000
             },
         },
         .controller_setting_init_config = {
@@ -141,7 +141,7 @@ void ChassisInit()
 
     Buzzer_config_s buzzer = {
         .alarm_level = ALARM_LEVEL_HIGH,
-        .loudness = 0.1,
+        .loudness = 0,
         .octave = OCTAVE_2,
     };
     buzzerc = BuzzerRegister(&buzzer);
@@ -178,22 +178,25 @@ static void LimitChassisOutput()
     // 功率限制待添加
     // referee_data->PowerHeatData.chassis_power;
     // referee_data->PowerHeatData.chassis_power_buffer;
-    uint16_t tempPower = chassis_cmd_recv.cap_power * 100;
+    uint16_t tempPower = chassis_power_recv.chassis_power_mx * 100;
     uint8_t data[8];
     data[0] = tempPower >> 8 ;
     data[1] = tempPower;
     SuperCapSend(cap, data);
-    
+    motor_lf->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[0];
+    motor_rf->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[1];
+    motor_lb->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[2];
+    motor_rb->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[3];
+    motor_lf->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[0];
+    motor_rf->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[1];
+    motor_lb->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[2];
+    motor_rb->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[3];
     // 完成功率限制后进行电机参考输入设定
     DJIMotorSetRef(motor_lf, vt_lf);
     DJIMotorSetRef(motor_rf, vt_rf);
     DJIMotorSetRef(motor_lb, vt_lb);
     DJIMotorSetRef(motor_rb, vt_rb);
 
-    DJIMotorSetValue(motor_lf, chassis_cmd_recv.motor_current[0]);
-    DJIMotorSetValue(motor_rf, chassis_cmd_recv.motor_current[1]);
-    DJIMotorSetValue(motor_lb, chassis_cmd_recv.motor_current[2]);
-    DJIMotorSetValue(motor_rb, chassis_cmd_recv.motor_current[3]);
 }
 
 /**
@@ -232,14 +235,14 @@ void ChassisTask()
     }
     else
     { // 正常工作
-        // DJIMotorEnable(motor_lf);
-        // DJIMotorEnable(motor_rf);
-        // DJIMotorEnable(motor_lb);
-        // DJIMotorEnable(motor_rb);
-        DJIMotorEnablePower(motor_lf);
-        DJIMotorEnablePower(motor_rf);
-        DJIMotorEnablePower(motor_lb);
-        DJIMotorEnablePower(motor_rb);
+        DJIMotorEnable(motor_lf);
+        DJIMotorEnable(motor_rf);
+        DJIMotorEnable(motor_lb);
+        DJIMotorEnable(motor_rb);
+        // DJIMotorEnablePower(motor_lf);
+        // DJIMotorEnablePower(motor_rf);
+        // DJIMotorEnablePower(motor_lb);
+        // DJIMotorEnablePower(motor_rb);
         buzzerc->alarm_state = ALARM_OFF;
     }
 
@@ -302,20 +305,20 @@ void ChassisTask()
     chassis_feedback_data.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
 
     chassis_feedback_data.chassis_level = 1;
-    chassis_feedback_data.chassis_power_limit = 45; // 20A
+    chassis_feedback_data.chassis_power_limit = 20; // 20A
 
     chassis_feedback_data.chassis_power = cap->cap_msg.power;
     chassis_feedback_data.chassis_cap_current = cap->cap_msg.current;
 
-    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps/19;
-    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps/19;
-    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps/19;
-    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps/19;
+    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps;
+    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps;
+    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps;
+    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps;
 
-    chassis_feedback_data.motor_current[0] = motor_lf->motor_controller.current_PID.Output;
-    chassis_feedback_data.motor_current[1] = motor_rf->motor_controller.current_PID.Output;
-    chassis_feedback_data.motor_current[2] = motor_lb->motor_controller.current_PID.Output;
-    chassis_feedback_data.motor_current[3] = motor_rb->motor_controller.current_PID.Output;
+    chassis_feedback_data.motor_current[0] = motor_lf->measure.real_current;
+    chassis_feedback_data.motor_current[1] = motor_rf->measure.real_current;
+    chassis_feedback_data.motor_current[2] = motor_lb->measure.real_current;
+    chassis_feedback_data.motor_current[3] = motor_rb->measure.real_current;
 
     chassis_feedback_data.real_wz = chassis_cmd_recv.wz / REAL_WZ_RAT;
     // 推送反馈消息

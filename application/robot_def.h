@@ -130,7 +130,8 @@ typedef enum
 typedef struct
 { // 功率控制
     float chassis_power_mx;
-    float motor_current[HUBS_NUMBER]; // 电机电流
+    float motor_current_up[HUBS_NUMBER]; // 电机电流正上限
+    float motor_current_down[HUBS_NUMBER]; // 电机电流负上限
 } Chassis_Power_Data_s;
 
 
@@ -153,7 +154,6 @@ typedef struct
     //  ...
     int friction_mode;
     int bullet_speed;
-    float motor_current[HUBS_NUMBER]; // 电机电流
     uint16_t cap_power;
 } Chassis_Ctrl_Cmd_s;
 

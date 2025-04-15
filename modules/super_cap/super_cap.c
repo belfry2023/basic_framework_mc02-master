@@ -19,7 +19,7 @@ static void SuperCapRxCallback(CANInstance *_instance)
     Msg = &super_cap_instance->cap_msg;
     Msg->vol = rxbuff[0] / 100.f;
     Msg->cvol = rxbuff[1] / 100.f;
-    Msg->current = rxbuff[2] / 100.f;
+    Msg->current = rxbuff[2] / 10.f;
     Msg->power = rxbuff[3] / 100.f;
 }
 
