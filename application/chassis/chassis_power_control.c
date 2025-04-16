@@ -29,7 +29,7 @@ static float32_t chassis_power_buffer = 0.0f;
 static 	float32_t toque_coefficient = 0.00000199688994; // (20/16384)*(0.3)*(187/3591)/9.55
 static 	float32_t k1 = 0.000000123;						 // k1
 static 	float32_t k2 = 0.0000001453;					 // k2
-static 	float32_t constant = 4.081f;
+static 	float32_t constant = 4.80f;
 
 static PIDInstance power_buffer_pid;
 
@@ -69,18 +69,20 @@ void chassis_power_control(void)
         distribut_give_power[i] = allocate_give_power[i] * power_time;
 		float32_t a = k1;
 		float32_t b = chassis_fetch_data.motor_speed[i] * toque_coefficient;
-		float32_t c = k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] + constant - distribut_give_power[i];
-        if((chassis_fetch_data.motor_speed[i] > 0 && chassis_fetch_data.motor_current[i] > 0) || (chassis_fetch_data.motor_speed[i] < 0 && chassis_fetch_data.motor_current[i] < 0))
+		float32_t c = k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] + constant - 10;
+        if(b * b - 4 * a * c > 0)
         {
-            chassis_power_send.motor_current_up[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
-            chassis_power_send.motor_current_down[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
-        }
-        else
-        {
-            chassis_power_send.motor_current_down[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
-            chassis_power_send.motor_current_up[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+            if((-b + sqrt(b * b - 4 * a * c)) / (2 * a) > 0)
+            {
+                chassis_power_send.motor_current_up[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+                chassis_power_send.motor_current_down[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+            }
+            else
+            {
+                chassis_power_send.motor_current_down[i] = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+                chassis_power_send.motor_current_up[i] = (-b - sqrt(b * b - 4 * a * c)) / (2 * a);
+            }
         }
 	}
-    
 	PubPushMessage(chassis_power_pub, (void *)&chassis_power_send);
 }

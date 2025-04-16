@@ -305,15 +305,15 @@ void ChassisTask()
     chassis_feedback_data.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
 
     chassis_feedback_data.chassis_level = 1;
-    chassis_feedback_data.chassis_power_limit = 20; // 20A
+    chassis_feedback_data.chassis_power_limit = 45; // 20A
 
     chassis_feedback_data.chassis_power = cap->cap_msg.power;
     chassis_feedback_data.chassis_cap_current = cap->cap_msg.current;
 
-    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps;
-    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps;
-    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps;
-    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps;
+    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps / 6;
+    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps / 6;
+    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps / 6;
+    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps / 6;
 
     chassis_feedback_data.motor_current[0] = motor_lf->measure.real_current;
     chassis_feedback_data.motor_current[1] = motor_rf->measure.real_current;
