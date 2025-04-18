@@ -62,6 +62,7 @@
     "message_center.h": "c",
     "remote_control.h": "c",
     "arm_math.h": "c",
-    "chassis_power_control.h": "c"
+    "chassis_power_control.h": "c",
+    "robot_def.h": "c"
   }
 }

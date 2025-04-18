@@ -196,7 +196,6 @@ static void LimitChassisOutput()
     DJIMotorSetRef(motor_rf, vt_rf);
     DJIMotorSetRef(motor_lb, vt_lb);
     DJIMotorSetRef(motor_rb, vt_rb);
-
 }
 
 /**
@@ -257,7 +256,7 @@ void ChassisTask()
         chassis_cmd_recv.wz = PIDCalculate(&chassis_follow_to_yaw_pid, chassis_cmd_recv.offset_angle, 0) - 0.5 * REAL_WZ_RAT * gimbal_fetch_data.gimbal_imu_data.Gyro[2];
         break;
     case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        chassis_cmd_recv.wz = 4000;
+        chassis_cmd_recv.wz = 2000;
         break;
     default:
         break;
@@ -315,10 +314,10 @@ void ChassisTask()
     chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps / 6;
     chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps / 6;
 
-    chassis_feedback_data.motor_current[0] = motor_lf->measure.real_current;
-    chassis_feedback_data.motor_current[1] = motor_rf->measure.real_current;
-    chassis_feedback_data.motor_current[2] = motor_lb->measure.real_current;
-    chassis_feedback_data.motor_current[3] = motor_rb->measure.real_current;
+    chassis_feedback_data.motor_current[0] = motor_lf->motor_controller.speed_PID.Output;
+    chassis_feedback_data.motor_current[1] = motor_rf->motor_controller.speed_PID.Output;
+    chassis_feedback_data.motor_current[2] = motor_lb->motor_controller.speed_PID.Output;
+    chassis_feedback_data.motor_current[3] = motor_rb->motor_controller.speed_PID.Output;
 
     chassis_feedback_data.real_wz = chassis_cmd_recv.wz / REAL_WZ_RAT;
     // 推送反馈消息
