@@ -81,3 +81,66 @@ USARTInstance *USARTMulRegister(USART_Init_Config_s *init_config)
     return instance;
 }
 
+void USARTMulSend(USARTInstance *_instance, uint8_t *send_buf, uint16_t send_size)
+{
+    HAL_UART_Transmit_DMA(_instance->usart_handle, send_buf, send_size);
+}
+
+
+static void USART_RxDMA_MultiBuffer_Callback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    for (uint8_t i = 0; i < idx; ++i)
+    { // find the instance which is being handled
+        if (huart == usart_instance[i]->usart_handle)
+        { 
+            if(((((DMA_Stream_TypeDef  *)huart->hdmarx->Instance)->CR) & DMA_SxCR_CT ) == RESET)
+            {
+          
+                __HAL_DMA_DISABLE(huart->hdmarx);
+  
+                ((DMA_Stream_TypeDef  *)huart->hdmarx->Instance)->CR |= DMA_SxCR_CT;
+                  
+                if(Size == usart_instance[i]->recv_buff_size)
+                {
+                          
+                    //Referee_System_Frame_Update(Referee_System_Info_MultiRx_Buf[0]);
+                  
+                    memset(usart_instance[i]->recv_buff,0,usart_instance[i]->recv_buff_size);
+  
+                    __HAL_DMA_SET_COUNTER(huart->hdmarx,usart_instance[i]->recv_buff_size * 2);
+                }
+                  
+            }
+            else
+            {
+                    __HAL_DMA_DISABLE(huart->hdmarx);
+                  
+                    ((DMA_Stream_TypeDef  *)huart->hdmarx->Instance)->CR &= ~(DMA_SxCR_CT);
+                  
+                    if(Size == usart_instance[i]->recv_buff_size)
+                    {
+          
+                        //Referee_System_Frame_Update(Referee_System_Info_MultiRx_Buf[1]);
+                  
+                        memset(usart_instance[i]->recv_buff[1],0,usart_instance[i]->recv_buff_size);
+  
+                        __HAL_DMA_SET_COUNTER(huart->hdmarx,usart_instance[i]->recv_buff_size * 2);
+
+                    }
+                      
+            }
+            
+
+            huart->ReceptionType = HAL_UART_RECEPTION_TOIDLE;
+	
+            /* Enalbe IDLE interrupt */
+            __HAL_UART_ENABLE_IT(huart, UART_IT_IDLE);
+              
+            /* Enable the DMA transfer for the receiver request */
+            SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+              
+            /* Enable DMA */
+            __HAL_DMA_ENABLE(huart->hdmarx);
+        }
+    }
+}
