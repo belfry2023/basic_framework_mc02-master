@@ -54,7 +54,7 @@ static USARTInstance *usart_instance[DEVICE_USART_CNT] = {NULL};
 
 void USARTMulServiceInit(USARTInstance *instance)
 {
-    USART_RxDMA_MultiBuffer_Init(instance->usart_handle, (unsigned)instance->recv_buff[0], (unsigned)instance->recv_buff[1], instance->recv_buff_size);
+    USART_RxDMA_MultiBuffer_Init(instance->usart_handle, (unsigned)instance->buff[0], (unsigned)instance->buff[1], instance->recv_buff_size);
 }
 
 
@@ -104,8 +104,9 @@ static void USART_RxDMA_MultiBuffer_Callback(UART_HandleTypeDef *huart, uint16_t
                 {
                           
                     //Referee_System_Frame_Update(Referee_System_Info_MultiRx_Buf[0]);
-                  
-                    memset(usart_instance[i]->recv_buff,0,usart_instance[i]->recv_buff_size);
+                    memcpy(usart_instance[i]->recv_buff,usart_instance[i]->buff[0],usart_instance[i]->recv_buff_size);
+                    usart_instance[i]->module_callback();
+                    memset(usart_instance[i]->buff[0],0,usart_instance[i]->recv_buff_size);
   
                     __HAL_DMA_SET_COUNTER(huart->hdmarx,usart_instance[i]->recv_buff_size * 2);
                 }
@@ -113,20 +114,21 @@ static void USART_RxDMA_MultiBuffer_Callback(UART_HandleTypeDef *huart, uint16_t
             }
             else
             {
-                    __HAL_DMA_DISABLE(huart->hdmarx);
+                __HAL_DMA_DISABLE(huart->hdmarx);
                   
-                    ((DMA_Stream_TypeDef  *)huart->hdmarx->Instance)->CR &= ~(DMA_SxCR_CT);
+                ((DMA_Stream_TypeDef  *)huart->hdmarx->Instance)->CR &= ~(DMA_SxCR_CT);
                   
-                    if(Size == usart_instance[i]->recv_buff_size)
-                    {
+                if(Size == usart_instance[i]->recv_buff_size)
+                {
           
-                        //Referee_System_Frame_Update(Referee_System_Info_MultiRx_Buf[1]);
-                  
-                        memset(usart_instance[i]->recv_buff[1],0,usart_instance[i]->recv_buff_size);
+                    //Referee_System_Frame_Update(Referee_System_Info_MultiRx_Buf[1]);
+                    memcpy(usart_instance[i]->recv_buff,usart_instance[i]->buff[1],usart_instance[i]->recv_buff_size);
+                    usart_instance[i]->module_callback();
+                    memset(usart_instance[i]->buff[1],0,usart_instance[i]->recv_buff_size);
   
-                        __HAL_DMA_SET_COUNTER(huart->hdmarx,usart_instance[i]->recv_buff_size * 2);
+                    __HAL_DMA_SET_COUNTER(huart->hdmarx,usart_instance[i]->recv_buff_size * 2);
 
-                    }
+                }
                       
             }
             
