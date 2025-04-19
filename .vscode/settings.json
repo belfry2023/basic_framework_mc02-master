@@ -63,6 +63,13 @@
     "remote_control.h": "c",
     "arm_math.h": "c",
     "chassis_power_control.h": "c",
-    "robot_def.h": "c"
+    "robot_def.h": "c",
+    "atomic": "c",
+    "*.tcc": "c",
+    "cstdint": "c",
+    "random": "c",
+    "stdint.h": "c",
+    "stdint-gcc.h": "c",
+    "stm32h7xx_hal_conf.h": "c"
   }
 }

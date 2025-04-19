@@ -108,6 +108,7 @@ bsp/spi/bsp_spi.c \
 bsp/iic/bsp_iic.c \
 bsp/can/bsp_can.c \
 bsp/usart/bsp_usart.c \
+bsp\usart\bsp_usart_double_buffer.c	\
 bsp/log/bsp_log.c \
 bsp/bsp_tools.c \
 modules/algorithm/controller.c \
