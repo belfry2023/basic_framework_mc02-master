@@ -53,7 +53,7 @@ void RobotCMDInit()
 {
     rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
     nav_recv_data = NavInit(&huart10);
-    vision_recv_data = VisionInit(&huart9); // 视觉通信串口
+    vision_recv_data = VisionInit(&huart7); // 视觉通信串口
 
     buffer_yaw = BUFRegister();
     buffer_pitch = BUFRegister();
