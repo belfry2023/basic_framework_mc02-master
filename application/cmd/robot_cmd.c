@@ -221,6 +221,7 @@ static void RemoteControlSet()
 static void MouseKeySet()
 {
     gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
+    shoot_mode_e shoot_mode = SHOOT_OFF;
     chassis_cmd_send.vy = -rc_data[TEMP].key[KEY_PRESS].s * 12000 + rc_data[TEMP].key[KEY_PRESS].w * 12000; // 系数待测
     chassis_cmd_send.vx = -rc_data[TEMP].key[KEY_PRESS].d * 12000 + rc_data[TEMP].key[KEY_PRESS].a * 12000;
     if(gimbal_cmd_send.yaw - aligned_total_yaw < 60 && gimbal_cmd_send.yaw - aligned_total_yaw > -60)
@@ -229,6 +230,24 @@ static void MouseKeySet()
     }
     gimbal_cmd_send.pitch -= (float)rc_data[TEMP].mouse.y / 660 * 5;
     shoot_cmd_send.fair_flag = rc_data[TEMP].mouse.press_l;
+    switch (rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 3) // Q键设置发射模式
+    {
+    case 0:
+        shoot_mode = LOAD_1_BULLET;
+        /* code */
+        break;
+    case 1:
+        shoot_mode = LOAD_3_BULLET;
+        /* code */
+        break;
+    case 2:
+        shoot_mode = LOAD_BURSTFIRE;
+        /* code */
+        break;
+    default:
+        shoot_mode = LOAD_STOP;
+        break;
+    }
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3) // Z键设置弹速
     {
     case 0:
@@ -250,7 +269,7 @@ static void MouseKeySet()
             shoot_cmd_send.load_mode = LOAD_STOP;
             break;
         case 1:
-            shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
+            shoot_cmd_send.load_mode = shoot_mode;
             break;
     }
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_R] % 2) // R键开关弹舱
@@ -274,7 +293,7 @@ static void MouseKeySet()
         break;
     }
     
-    switch(rc_data[TEMP].key_count[KEY_PRESS][Key_X] % 3)
+    switch(rc_data[TEMP].key_count[KEY_PRESS][Key_Shift] % 3)
     {
         case 0:
             chassis_cmd_send.chassis_mode = CHASSIS_NO_FOLLOW;
