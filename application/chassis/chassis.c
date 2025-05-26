@@ -178,7 +178,7 @@ static void LimitChassisOutput()
     // 功率限制待添加
     // referee_data->PowerHeatData.chassis_power;
     // referee_data->PowerHeatData.chassis_power_buffer;
-    uint16_t tempPower = chassis_power_recv.chassis_power_mx * 100;
+    uint16_t tempPower = chassis_feedback_data.chassis_power_limit * 100;
     uint8_t data[8];
     data[0] = tempPower >> 8 ;
     data[1] = tempPower;

@@ -69,7 +69,7 @@ void chassis_power_control(void)
         distribut_give_power[i] = allocate_give_power[i] * power_time;
 		float32_t a = k1;
 		float32_t b = chassis_fetch_data.motor_speed[i] * toque_coefficient;
-		float32_t c = k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] + constant - 10;
+		float32_t c = k2 * chassis_fetch_data.motor_speed[i] * chassis_fetch_data.motor_speed[i] + constant - 20;
         if(b * b - 4 * a * c > 0)
         {
             if((-b + sqrt(b * b - 4 * a * c)) / (2 * a) > 0)
