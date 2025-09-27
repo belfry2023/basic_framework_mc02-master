@@ -60,6 +60,7 @@ static void VisionOfflineCallback(void *id)
  * @todo  1.提高可读性,将get_protocol_info的第四个参数增加一个float类型buffer
  *        2.添加标志位解码
  */
+static void (*vision_application_callback)(void);
 static void DecodeVision()
 {
     uint16_t flag_register;
@@ -72,16 +73,17 @@ static void DecodeNav()
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance[1]); // 喂狗
     get_protocol_info(vision_usart_instance[1]->recv_buff, &flag_register, (uint8_t *)&recv_data_nav.vx);
+    vision_application_callback();
     // TODO: code to resolve flag_register;
 }
-Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle)
+Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle, void (*application_callback)(void))
 {
     USART_Init_Config_s conf;
     conf.module_callback = DecodeVision;
     conf.recv_buff_size = VISION_RECV_SIZE;
     conf.usart_handle = _handle;
     vision_usart_instance[0] = USARTRegister(&conf);
-
+    vision_application_callback = application_callback;
     // 为master process注册daemon,用于判断视觉通信是否离线
     Daemon_Init_Config_s daemon_conf = {
         .callback = VisionOfflineCallback, // 离线时调用的回调函数,会重启串口接收

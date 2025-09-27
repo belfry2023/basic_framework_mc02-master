@@ -49,11 +49,18 @@ static buf_t *buffer_yaw, *buffer_pitch;
 static Robot_Status_e robot_state; // 机器人整体工作状态
 static uint8_t flag=1;
 static float aligned_total_yaw, aligned_total_pitch;
+
+void syncWithVisionSystem()
+{
+    aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 1);
+    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Pitch, 1);
+}
+
 void RobotCMDInit()
 {
     rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
     nav_recv_data = NavInit(&huart10);
-    vision_recv_data = VisionInit(&huart9); // 视觉通信串口
+    vision_recv_data = VisionInit(&huart9, syncWithVisionSystem); // 视觉通信串口
 
     buffer_yaw = BUFRegister();
     buffer_pitch = BUFRegister();
@@ -357,9 +364,7 @@ void RobotCMDTask()
     SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
     //flag = ~flag;
-    
-    aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 10);
-    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Roll, 10);
+
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     
