@@ -45,10 +45,10 @@ static Publisher_t *shoot_cmd_pub;           // 发射控制消息发布者
 static Subscriber_t *shoot_feed_sub;         // 发射反馈信息订阅者
 static Shoot_Ctrl_Cmd_s shoot_cmd_send;      // 传递给发射的控制信息
 static Shoot_Upload_Data_s shoot_fetch_data; // 从发射获取的反馈信息
-static buf_t *buffer_yaw, *buffer_pitch;
+static buf_t *buffer_yaw, *buffer_pitch, *buffer_delay_yaw; 
 static Robot_Status_e robot_state; // 机器人整体工作状态
 static uint8_t flag=1;
-static float aligned_total_yaw, aligned_total_pitch;
+static float aligned_total_yaw, aligned_total_pitch, delayed_total_yaw;
 
 void syncWithVisionSystem()
 {
@@ -64,7 +64,7 @@ void RobotCMDInit()
 
     buffer_yaw = BUFRegister();
     buffer_pitch = BUFRegister();
-
+    buffer_delay_yaw = BUFRegister();
     gimbal_cmd_pub = PubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
     gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
     shoot_cmd_pub = PubRegister("shoot_cmd", sizeof(Shoot_Ctrl_Cmd_s));
@@ -165,14 +165,14 @@ static void RemoteControlSet()
     // 左侧开关状态为[下],或视觉未识别到目标,纯遥控器拨杆控制
     if (switch_is_down(rc_data[TEMP].rc.switch_left) || !vision_recv_data->yaw || !vision_recv_data->pitch)
     { // 按照摇杆的输出大小进行角度增量,增益系数需调整
-        if(gimbal_cmd_send.yaw - aligned_total_yaw < 60 && gimbal_cmd_send.yaw - aligned_total_yaw > -60)
+        if(gimbal_cmd_send.yaw - delayed_total_yaw < 60 && gimbal_cmd_send.yaw - delayed_total_yaw > -60)
         {
             gimbal_cmd_send.yaw -= 0.005f * (float)rc_data[TEMP].rc.rocker_r_;
         }else
-        if(gimbal_cmd_send.yaw - aligned_total_yaw > 60){
-            gimbal_cmd_send.yaw = aligned_total_yaw + 60;
+        if(gimbal_cmd_send.yaw - delayed_total_yaw > 60){
+            gimbal_cmd_send.yaw = delayed_total_yaw + 60;
         }else{
-            gimbal_cmd_send.yaw = aligned_total_yaw - 60;
+            gimbal_cmd_send.yaw = delayed_total_yaw - 60;
         }
         gimbal_cmd_send.pitch += 0.001f * (float)rc_data[TEMP].rc.rocker_r1;
     }
@@ -230,9 +230,14 @@ static void MouseKeySet()
     gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
     chassis_cmd_send.vy = -rc_data[TEMP].key[KEY_PRESS].s * 12000 + rc_data[TEMP].key[KEY_PRESS].w * 12000; // 系数待测
     chassis_cmd_send.vx = -rc_data[TEMP].key[KEY_PRESS].d * 12000 + rc_data[TEMP].key[KEY_PRESS].a * 12000;
-    if(gimbal_cmd_send.yaw - aligned_total_yaw < 60 && gimbal_cmd_send.yaw - aligned_total_yaw > -60)
+    if(gimbal_cmd_send.yaw - delayed_total_yaw < 60 && gimbal_cmd_send.yaw - delayed_total_yaw > -60)
     {
         gimbal_cmd_send.yaw -= (float)rc_data[TEMP].mouse.x / 660 * 10; // 系数待测
+    }else
+    if(gimbal_cmd_send.yaw - delayed_total_yaw > 60){
+        gimbal_cmd_send.yaw = delayed_total_yaw + 60;
+    }else{
+        gimbal_cmd_send.yaw = delayed_total_yaw - 60;
     }
     gimbal_cmd_send.pitch -= (float)rc_data[TEMP].mouse.y / 660 * 5;
     shoot_cmd_send.fair_flag = rc_data[TEMP].mouse.press_l;
@@ -364,7 +369,7 @@ void RobotCMDTask()
     SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
     //flag = ~flag;
-
+    delayed_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 10);
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     
