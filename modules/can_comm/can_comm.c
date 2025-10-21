@@ -111,7 +111,6 @@ void CANCommSend(CANCommInstance *instance, uint8_t *data)
     memcpy(instance->raw_sendbuf + 2, data, instance->send_data_len);
     crc8 = crc_8(data, instance->send_data_len);
     instance->raw_sendbuf[2 + instance->send_data_len] = crc8;
-
     // CAN单次发送最大为8字节,如果超过8字节,需要分包发送
     for (size_t i = 0; i < instance->send_buf_len; i += 8)
     { // 如果是最后一包,send len将会小于8,要修改CAN的txconf中的DLC位,调用bsp_can提供的接口即可
