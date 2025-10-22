@@ -116,7 +116,7 @@ void CANCommSend(CANCommInstance *instance, uint8_t *data)
     for (size_t i = 0; i < instance->send_buf_len; i += 8)
     { // 如果是最后一包,send len将会小于8,要修改CAN的txconf中的DLC位,调用bsp_can提供的接口即可
         send_len = instance->send_buf_len - i >= 8 ? 8 : instance->send_buf_len - i;
-        CANSetDLC(instance->can_ins, send_len);
+        // CANSetDLC(instance->can_ins, send_len);
         memcpy(instance->can_ins->tx_buff, instance->raw_sendbuf + i, send_len);
         CANTransmit(instance->can_ins, 1);
     }

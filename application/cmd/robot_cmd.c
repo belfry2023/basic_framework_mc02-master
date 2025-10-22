@@ -77,7 +77,7 @@ void RobotCMDInit()
 #ifdef GIMBAL_BOARD
     CANComm_Init_Config_s comm_conf = {
         .can_config = {
-            .can_handle = &hcan2,
+            .can_handle = &hcan1,
             .tx_id = 0x312,
             .rx_id = 0x311,
         },
