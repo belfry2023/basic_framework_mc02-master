@@ -50,7 +50,8 @@ static uint8_t idx;
 static void VisionOfflineCallback(void *id)
 {
 #ifdef VISION_USE_UART
-    USARTServiceInit(vision_usart_instance[1]);
+    USARTServiceInit(vision_usart_instance[0]);
+    // USARTServiceInit(vision_usart_instance[1]);
 #endif // !VISION_USE_UART
     LOGWARNING("[vision] vision offline, restart communication.");
 }
@@ -66,6 +67,7 @@ static void DecodeVision()
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance[0]); // 喂狗
     get_protocol_info(vision_usart_instance[0]->recv_buff, &flag_register, (uint8_t *)&recv_data.yaw);
+    vision_application_callback();
     // TODO: code to resolve flag_register;
 }
 static void DecodeNav()
@@ -73,7 +75,7 @@ static void DecodeNav()
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance[1]); // 喂狗
     get_protocol_info(vision_usart_instance[1]->recv_buff, &flag_register, (uint8_t *)&recv_data_nav.vx);
-    vision_application_callback();
+    // vision_application_callback();
     // TODO: code to resolve flag_register;
 }
 Vision_Recv_s *VisionInit(UART_HandleTypeDef *_handle, void (*application_callback)(void))
