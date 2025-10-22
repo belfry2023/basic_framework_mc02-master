@@ -111,7 +111,7 @@ void GimbalInit()
     gimbal_pub = PubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
     gimbal_sub = SubRegister("gimbal_cmd", sizeof(Gimbal_Ctrl_Cmd_s));
 }
-static void change_spd_ford()   
+static void change_spd_ford()
 {
     if(pitch_motor->motor_controller.angle_PID.Err > 0)
         speed_forward = pitch_motor->motor_controller.angle_PID.Err > 0.5 ? (5 * cos(gimba_IMU_data->Roll*PI/360) + 10) : 0;
@@ -171,7 +171,8 @@ void GimbalTask()
     // 在合适的地方添加pitch重力补偿前馈力矩
     // 根据IMU姿态/pitch电机角度反馈计算出当前配重下的重力矩
     // ...
-
+    // DJIMotorStop(yaw_motor);
+    // DJIMotorStop(pitch_motor);
     // 设置反馈数据,主要是imu和yaw的ecd
     gimbal_feedback_data.gimbal_imu_data = *gimba_IMU_data;
     gimbal_feedback_data.yaw_motor_single_round_angle = yaw_motor->measure.angle_single_round;

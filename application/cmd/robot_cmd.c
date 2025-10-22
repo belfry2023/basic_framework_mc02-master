@@ -52,15 +52,15 @@ static float aligned_total_yaw, aligned_total_pitch, delayed_total_yaw;
 
 void syncWithVisionSystem()
 {
-    aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 1);
-    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Pitch, 1);
+    // aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 1);
+    // aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Roll, 1);
 }
 
 void RobotCMDInit()
 {
     rc_data = RemoteControlInit(&huart5); // 修改为对应串口,注意如果是自研板dbus协议串口需选用添加了反相器的那个
-    nav_recv_data = NavInit(&huart10);
-    vision_recv_data = VisionInit(&huart9, syncWithVisionSystem); // 视觉通信串口
+    // nav_recv_data = NavInit(&huart9);
+    vision_recv_data = VisionInit(&huart10, syncWithVisionSystem); // 视觉通信串口
 
     buffer_yaw = BUFRegister();
     buffer_pitch = BUFRegister();
@@ -137,22 +137,22 @@ static void RemoteControlSet()
         nav_recv_data->wz = 0;
         gimbal_cmd_send.gimbal_mode = GIMBAL_GYRO_MODE;
     }else
-    if (switch_is_mid(rc_data[TEMP].rc.switch_left)) // 左侧开关状态[中],导航模式 && (vision_recv_data->yaw || vision_recv_data->pitch)
+    if (switch_is_mid(rc_data[TEMP].rc.switch_left)  && (vision_recv_data->yaw || vision_recv_data->pitch)) // 左侧开关状态[中],导航模式 && (vision_recv_data->yaw || vision_recv_data->pitch)
     {
         //  待添加,视觉会发来和目标的误差,同样将其转化为total angle的增量进行控制
         // ...
-        // if(vision_recv_data->yaw < 50 &&
-        //    vision_recv_data->pitch < 50 && 
-        //    vision_recv_data->yaw > -50 && 
-        //    vision_recv_data->pitch > -50) // 异常数据判断
-        // {
-        //     gimbal_cmd_send.yaw = aligned_total_yaw - vision_recv_data->yaw;
-        //     gimbal_cmd_send.pitch = aligned_total_pitch + vision_recv_data->pitch;
-        // }
-        chassis_cmd_send.vy = nav_recv_data->vx * 19500; // _水平方向
-        chassis_cmd_send.vx = nav_recv_data->vy * 19500; // 1数值方向
-        chassis_cmd_send.wz = nav_recv_data->wz;
-        gimbal_cmd_send.pitch = 0;
+        if(vision_recv_data->yaw < 40 &&
+           vision_recv_data->pitch < 40 && 
+           vision_recv_data->yaw > -40 && 
+           vision_recv_data->pitch > -40) // 异常数据判断
+        {
+            gimbal_cmd_send.yaw = aligned_total_yaw + vision_recv_data->yaw;
+            // gimbal_cmd_send.pitch = aligned_total_pitch + vision_recv_data->pitch;
+        }
+        // chassis_cmd_send.vy = nav_recv_data->vx * 19500; // _水平方向
+        // chassis_cmd_send.vx = nav_recv_data->vy * 19500; // 1数值方向
+        // chassis_cmd_send.wz = nav_recv_data->wz;
+        // gimbal_cmd_send.pitch = 0;
     }
     // else
     // {
@@ -369,7 +369,9 @@ void RobotCMDTask()
     SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
     //flag = ~flag;
-    delayed_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 10);
+    delayed_total_yaw = BUFUpdata(buffer_delay_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 10);
+    aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 20);
+    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Roll, 10);
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     

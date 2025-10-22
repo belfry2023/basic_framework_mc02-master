@@ -121,6 +121,8 @@ uint16_t get_protocol_info(uint8_t *rx_buf,          // 接收到的原始数据
     
     if (protocol_heade_Check(&pro, rx_buf))
     {
+        static uint32_t fag;
+        fag++;
         date_length = OFFSET_BYTE + pro.header.data_length;
         if (CRC16_Check_Sum(&rx_buf[0], date_length))
         {

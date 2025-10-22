@@ -6,7 +6,7 @@
 
 typedef struct 
 {
-    float quene[25];
+    float quene[256];
     uint8_t id, od;
 }buf_t;
 

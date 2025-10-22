@@ -29,8 +29,8 @@ void VisionSetFlag(Enemy_Color_e enemy_color, Work_Mode_e work_mode, Bullet_Spee
 void VisionSetAltitude(float yaw, float pitch, float roll)
 {
     send_data.yaw = yaw;
-    send_data.pitch = pitch;
-    send_data.roll = roll;
+    send_data.pitch = roll;
+    send_data.roll = pitch;
 }
 
 /**
@@ -50,7 +50,7 @@ static uint8_t idx;
 static void VisionOfflineCallback(void *id)
 {
 #ifdef VISION_USE_UART
-    USARTServiceInit(vision_usart_instance[1]);
+    USARTServiceInit(vision_usart_instance[0]);
 #endif // !VISION_USE_UART
     LOGWARNING("[vision] vision offline, restart communication.");
 }
@@ -66,6 +66,7 @@ static void DecodeVision()
     uint16_t flag_register;
     DaemonReload(vision_daemon_instance[0]); // 喂狗
     get_protocol_info(vision_usart_instance[0]->recv_buff, &flag_register, (uint8_t *)&recv_data.yaw);
+    vision_application_callback();
     // TODO: code to resolve flag_register;
 }
 static void DecodeNav()
@@ -131,7 +132,7 @@ void VisionSend()
     flag_register = 30 << 8 | 0b00000001;
     // 将数据转化为seasky协议的数据包
     get_protocol_send_data(0x02, flag_register, &send_data.yaw, 3, send_buff, &tx_len);
-    USARTSend(vision_usart_instance[1], send_buff, tx_len, USART_TRANSFER_IT); // 和视觉通信使用IT,防止和接收使用的DMA冲突
+    USARTSend(vision_usart_instance[0], send_buff, tx_len, USART_TRANSFER_IT); // 和视觉通信使用IT,防止和接收使用的DMA冲突
     // 此处为HAL设计的缺陷,DMASTOP会停止发送和接收,导致再也无法进入接收中断.
     // 也可在发送完成中断中重新启动DMA接收,但较为复杂.因此,此处使用IT发送.
     // 若使用了daemon,则也可以使用DMA发送.
