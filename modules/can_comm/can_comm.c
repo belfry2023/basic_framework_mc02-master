@@ -118,6 +118,7 @@ void CANCommSend(CANCommInstance *instance, uint8_t *data)
         CANSetDLC(instance->can_ins, send_len);
         memcpy(instance->can_ins->tx_buff, instance->raw_sendbuf + i, send_len);
         CANTransmit(instance->can_ins, 1);
+        DWT_Delay(0.000001); // 适当延时,避免总线拥堵
     }
 }
 
