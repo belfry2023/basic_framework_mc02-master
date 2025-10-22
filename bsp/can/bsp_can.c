@@ -251,7 +251,7 @@ void CANSetDLC(CANInstance *_instance, uint8_t length)
         	LOGERROR("[bsp_can] CAN DLC error! check your code or wild pointer");
         }
 
-    _instance->txconf.DataLength = length * 65536;
+    _instance->txconf.DataLength = (uint32_t)(length * 65536);
 }
 
 /* -----------------------belows are callback definitions--------------------------*/
