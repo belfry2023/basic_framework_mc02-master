@@ -164,10 +164,10 @@ void INS_Task(void)
         BodyFrameToEarthFrame(INS.MotionAccel_b, INS.MotionAccel_n, INS.q); // 转换回导航系n
 
         INS.Yaw = QEKF_INS.Yaw;
-        INS.Pitch = QEKF_INS.Pitch;
+        INS.Pitch = -QEKF_INS.Pitch;
         INS.Roll = QEKF_INS.Roll;
         INS.Gyro[2] = QEKF_INS.Gyro[2];
-        INS.YawTotalAngle = QEKF_INS.YawTotalAngle;
+        INS.YawTotalAngle = -QEKF_INS.YawTotalAngle;
 
         VisionSetAltitude(INS.Yaw, INS.Pitch, INS.Roll);
     }

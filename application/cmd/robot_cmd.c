@@ -371,7 +371,7 @@ void RobotCMDTask()
     //flag = ~flag;
     delayed_total_yaw = BUFUpdata(buffer_delay_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 10);
     aligned_total_yaw = BUFUpdata(buffer_yaw, gimbal_fetch_data.gimbal_imu_data.YawTotalAngle, 20);
-    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Roll, 10);
+    aligned_total_pitch = BUFUpdata(buffer_pitch, gimbal_fetch_data.gimbal_imu_data.Pitch, 10);
     // 根据gimbal的反馈值计算云台和底盘正方向的夹角,不需要传参,通过static私有变量完成
     CalcOffsetAngle();
     

@@ -66,7 +66,7 @@ void GimbalInit()
     Motor_Init_Config_s pitch_config = {
         .can_init_config = {
             .can_handle = &hcan1,
-            .tx_id = 1,
+            .tx_id = 4,
         },   
         .controller_param_init_config = {
             .angle_PID = {
@@ -89,9 +89,9 @@ void GimbalInit()
                 .MaxOut = 25000,
                 .MaxOut_ = -25000
             },
-            .other_angle_feedback_ptr = &gimba_IMU_data->Roll,
+            .other_angle_feedback_ptr = &gimba_IMU_data->Pitch,
             // 还需要增加角速度额外反馈指针,注意方向,ins_task.md中有c板的bodyframe坐标系说明
-            .other_speed_feedback_ptr = (&gimba_IMU_data->Gyro[1]),
+            .other_speed_feedback_ptr = (&gimba_IMU_data->Gyro[0]),
             .speed_feedforward_ptr = &speed_forward,
         },
         .controller_setting_init_config = {
@@ -114,9 +114,9 @@ void GimbalInit()
 static void change_spd_ford()
 {
     if(pitch_motor->motor_controller.angle_PID.Err > 0)
-        speed_forward = pitch_motor->motor_controller.angle_PID.Err > 0.5 ? (5 * cos(gimba_IMU_data->Roll*PI/360) + 10) : 0;
+        speed_forward = pitch_motor->motor_controller.angle_PID.Err > 0.5 ? (5 * cos(gimba_IMU_data->Pitch*PI/360) + 10) : 0;
     else
-        speed_forward = pitch_motor->motor_controller.angle_PID.Err < -0.5 ? (5 * cos(gimba_IMU_data->Roll*PI/360) - 10) : 0;
+        speed_forward = pitch_motor->motor_controller.angle_PID.Err < -0.5 ? (5 * cos(gimba_IMU_data->Pitch*PI/360) - 10) : 0;
 }
 /* 机器人云台控制核心任务,后续考虑只保留IMU控制,不再需要电机的反馈 */
 void GimbalTask()
