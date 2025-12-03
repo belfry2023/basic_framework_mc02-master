@@ -137,7 +137,6 @@ modules/referee/rm_referee.c \
 modules/referee/referee_UI.c \
 modules/referee/referee_task.c \
 modules/remote/remote_control.c \
-modules/super_cap/super_cap.c \
 modules/can_comm/can_comm.c \
 modules/message_center/message_center.c \
 modules/daemon/daemon.c \
@@ -148,6 +147,8 @@ application/chassis/chassis.c \
 application/shoot/shoot.c \
 application/cmd/robot_cmd.c \
 application/robot.c \
+application/chassis/chassis_power_control_with_supercap.c \
+modules/super_cap/CAN_supercap_communication.c \
 Core/Src/i2c.c
 
 # ASM sources

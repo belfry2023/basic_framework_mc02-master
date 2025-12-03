@@ -66,6 +66,8 @@
     "referee_task.h": "c",
     "rm_referee.h": "c",
     "freertos.h": "c",
-    "portable.h": "c"
+    "portable.h": "c",
+    "stm32h7xx.h": "c",
+    "stm32h723xx.h": "c"
   }
 }

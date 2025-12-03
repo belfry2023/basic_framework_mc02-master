@@ -133,7 +133,22 @@ typedef struct
     float motor_current_up[HUBS_NUMBER]; // 电机电流正上限
     float motor_current_down[HUBS_NUMBER]; // 电机电流负上限
 } Chassis_Power_Data_s;
-
+typedef struct 
+{
+    float spd;
+    float dir;
+    float tor;
+    float speed_pid_out;
+    float err;
+    float AKp;
+    float SKp;
+    /* data */
+}motor_data;
+typedef struct 
+{
+    motor_data motor[4];
+    /* data */ 
+} CAP_Ctrl_Chassis_s;
 
 /* ----------------CMD应用发布的控制数据,应当由gimbal/chassis/shoot订阅---------------- */
 /**
@@ -263,6 +278,16 @@ typedef struct
     uint8_t rest_heat;
     float shoot_rate; // 连续发射的射频,unit per s,发/秒
 } Shoot_Upload_Data_s;
+
+typedef struct
+{
+    motor_data motor[4];
+    uint8_t SuperCapReady;
+    uint16_t ChassisPower;
+    float chassis_power_mx;
+    uint16_t buffer_energy;
+    /* data */
+}Chassis_Upload_CAP_s;
 
 #pragma pack() // 开启字节对齐,结束前面的#pragma pack(1)
 
