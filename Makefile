@@ -148,7 +148,6 @@ application/chassis/chassis.c \
 application/shoot/shoot.c \
 application/cmd/robot_cmd.c \
 application/robot.c \
-application/chassis/chassis_power_control.c \
 Core/Src/i2c.c
 
 # ASM sources

@@ -14,4 +14,6 @@ void RobotCMDInit();
  */
 void RobotCMDTask();
 
+void chassisCANSendCommands();
+
 #endif // !ROBOT_CMD_H

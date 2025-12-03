@@ -14,22 +14,28 @@
 #include "bsp_log.h"
 
 // 私有宏,自动将编码器转换成角度值
-// @todo 8191转换成360的精度太低,会损失精度
 #define YAW_ALIGN_ANGLE (YAW_CHASSIS_ALIGN_ECD * ECD_ANGLE_COEF_DJI) // 对齐时的角度,0-360
 #define PTICH_HORIZON_ANGLE (PITCH_HORIZON_ECD * ECD_ANGLE_COEF_DJI) // pitch水平时电机的角度,0-360
 
 /* cmd应用包含的模块实例指针和交互信息存储*/
 #ifdef GIMBAL_BOARD // 对双板的兼容,条件编译
 #include "can_comm.h"
-static CANCommInstance *cmd_can_comm; // 双板通信
+static CANCommInstance *cmd_can_comm1; // 用于发送vx, vy
+static CANCommInstance *cmd_can_comm2; // 用于发送wz, offset_angle
+static CANCommInstance *cmd_can_comm3; // 用于发送chassis_mode, friction_mode, bullet_speed等
 #endif
 #ifdef ONE_BOARD
 static Publisher_t *chassis_cmd_pub;   // 底盘控制消息发布者
 static Subscriber_t *chassis_feed_sub; // 底盘反馈信息订阅者
 #endif                                 // ONE_BOARD
 
-static Chassis_Ctrl_Cmd_s chassis_cmd_send;      // 发送给底盘应用的信息,包括控制信息和UI绘制相关
-static Chassis_Upload_Data_s chassis_fetch_data; // 从底盘应用接收的反馈信息信息,底盘功率枪口热量与底盘运动状态等
+// 三个独立的结构体用于双板通信
+static Chassis_Ctrl_Cmd_1s chassis_cmd_1send;      // 发送给底盘的x, y速度控制信息
+static Chassis_Ctrl_Cmd_2s chassis_cmd_2send;      // 发送给底盘的z, offset_angle控制信息
+static Chassis_Ctrl_Cmd_3s chassis_cmd_3send;      // 发送给底盘控制模式信息
+static Chassis_Ctrl_Cmd_s chassis_cmd_send;        // 完整的控制命令（用于单板模式）
+
+static Chassis_Upload_Data_s chassis_fetch_data;   // 从底盘应用接收的反馈信息信息,底盘功率枪口热量与底盘运动状态等
 
 static RC_ctrl_t *rc_data;              // 遥控器数据,初始化时返回
 static Vision_Recv_s *vision_recv_data; // 视觉接收数据指针,初始化时返回
@@ -74,18 +80,44 @@ void RobotCMDInit()
     chassis_cmd_pub = PubRegister("chassis_cmd", sizeof(Chassis_Ctrl_Cmd_s));
     chassis_feed_sub = SubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
 #endif // ONE_BOARD
+
 #ifdef GIMBAL_BOARD
-    CANComm_Init_Config_s comm_conf = {
+    // 初始化三个独立的CAN通信实例，每个实例负责发送一个结构体
+    
+    // 第一个CAN实例：发送vx, vy
+    CANComm_Init_Config_s comm_conf1 = {
         .can_config = {
             .can_handle = &hcan1,
-            .tx_id = 0x312,
-            .rx_id = 0x311,
+            .tx_id = 0x312,  // 云台板发送ID（vx, vy）
+            .rx_id = 0x311,  // 接收底盘反馈（如果需要）
         },
-        .recv_data_len = sizeof(Chassis_Upload_Data_s),
-        .send_data_len = sizeof(Chassis_Ctrl_Cmd_s),
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_1s),
     };
-    cmd_can_comm = CANCommInit(&comm_conf);
+    cmd_can_comm1 = CANCommInit(&comm_conf1);
+    
+    // 第二个CAN实例：发送wz, offset_angle
+    CANComm_Init_Config_s comm_conf2 = {
+        .can_config = {
+            .can_handle = &hcan1,
+            .tx_id = 0x313,  // 云台板发送ID（wz, offset_angle）
+            .rx_id = 0x311,  // 接收底盘反馈（如果需要）
+        },
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_2s),
+    };
+    cmd_can_comm2 = CANCommInit(&comm_conf2);
+    
+    // 第三个CAN实例：发送chassis_mode, friction_mode, bullet_speed, cap_power
+    CANComm_Init_Config_s comm_conf3 = {
+        .can_config = {
+            .can_handle = &hcan1,
+            .tx_id = 0x314,  // 云台板发送ID（控制模式等）
+            .rx_id = 0x311,  // 接收底盘反馈（如果需要）
+        },
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_3s),
+    };
+    cmd_can_comm3 = CANCommInit(&comm_conf3);
 #endif // GIMBAL_BOARD
+    
     gimbal_cmd_send.pitch = 0;
 
     robot_state = ROBOT_READY; // 启动时机器人进入工作模式,后续加入所有应用初始化完成之后再进入
@@ -106,12 +138,6 @@ static void CalcOffsetAngle()
     chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE;
     chassis_cmd_send.offset_angle = chassis_cmd_send.offset_angle < 180 ? chassis_cmd_send.offset_angle : -(360 - chassis_cmd_send.offset_angle);
     chassis_cmd_send.offset_angle = chassis_cmd_send.offset_angle > -180 ? chassis_cmd_send.offset_angle : (360 + chassis_cmd_send.offset_angle);
-    // if (angle > YAW_ALIGN_ANGLE && angle <= 180.0f + YAW_ALIGN_ANGLE)
-    //     chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE;
-    // else if (angle > 180.0f + YAW_ALIGN_ANGLE)
-    //     chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE - 360.0f;
-    // else
-    //     chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE;
 #else // 小于180度
     if (angle > YAW_ALIGN_ANGLE)
         chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE;
@@ -120,6 +146,21 @@ static void CalcOffsetAngle()
     else
         chassis_cmd_send.offset_angle = angle - YAW_ALIGN_ANGLE + 360.0f;
 #endif
+}
+
+/**
+ * @brief 将完整的控制命令拆分为三个独立的结构体
+ */
+static void SplitChassisCommands()
+{
+    // 将完整的chassis_cmd_send拆分为三个独立的结构体
+    chassis_cmd_1send.vx = chassis_cmd_send.vx;
+    chassis_cmd_1send.vy = chassis_cmd_send.vy;
+    
+    chassis_cmd_2send.wz = chassis_cmd_send.wz;
+    chassis_cmd_2send.offset_angle = chassis_cmd_send.offset_angle;
+    
+    chassis_cmd_3send.chassis_mode = chassis_cmd_send.chassis_mode;
 }
 
 /**
@@ -209,9 +250,9 @@ static void RemoteControlSet()
         //gimbal_cmd_send.pitch = gimbal_fetch_data.gimbal_imu_data.Pitch;
     }
     if (rc_data[TEMP].rc.dial < -200) // 向上超过100,打开摩擦轮
-        shoot_cmd_send.friction_mode = FRICTION_ON;
+        chassis_cmd_send.friction_mode = FRICTION_ON;
     else
-        shoot_cmd_send.friction_mode = FRICTION_OFF;
+        chassis_cmd_send.friction_mode = FRICTION_OFF;
     // 拨弹控制,遥控器固定为一种拨弹模式,可自行选择
     if (rc_data[TEMP].rc.dial < -500)
         shoot_cmd_send.load_mode = LOAD_BURSTFIRE;
@@ -244,15 +285,12 @@ static void MouseKeySet()
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_Z] % 3) // Z键设置弹速
     {
     case 0:
-        shoot_cmd_send.bullet_speed = 15;
         chassis_cmd_send.bullet_speed = 15;
         break;
     case 1:
-        shoot_cmd_send.bullet_speed = 18;
         chassis_cmd_send.bullet_speed = 18;
         break;
     default:
-        shoot_cmd_send.bullet_speed = 30;
         chassis_cmd_send.bullet_speed = 30;
         break;
     }
@@ -277,12 +315,10 @@ static void MouseKeySet()
     switch (rc_data[TEMP].key_count[KEY_PRESS][Key_F] % 2) // F键开关摩擦轮
     {
     case 0:
-        shoot_cmd_send.friction_mode = FRICTION_OFF;
-        chassis_cmd_send.friction_mode = 0;
+        chassis_cmd_send.friction_mode = FRICTION_OFF;
         break;
     default:
-        shoot_cmd_send.friction_mode = FRICTION_ON;
-        chassis_cmd_send.friction_mode = 1;
+        chassis_cmd_send.friction_mode = FRICTION_ON;
         break;
     }
     
@@ -356,6 +392,17 @@ static void EmergencyHandler()
     }
 }
 
+void chassisCANSendCommands()
+{   
+    // 1. 首先拆分控制命令
+    SplitChassisCommands();
+    
+    // 2. 通过两个独立的CAN实例发送两个结构体
+    CANCommSend(cmd_can_comm1, (void *)&chassis_cmd_1send, CAN_DATA_MIXED);
+    CANCommSend(cmd_can_comm2, (void *)&chassis_cmd_2send, CAN_DATA_MIXED);
+    
+}
+
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */
 void RobotCMDTask()
 {
@@ -364,7 +411,8 @@ void RobotCMDTask()
     SubGetMessage(chassis_feed_sub, (void *)&chassis_fetch_data);
 #endif // ONE_BOARD
 #ifdef GIMBAL_BOARD
-    chassis_fetch_data = *(Chassis_Upload_Data_s *)CANCommGet(cmd_can_comm);
+    // 注意：双板模式下，云台板可能不需要接收底盘反馈，或者通过CAN接收
+    // 如果需要接收，可以在这里添加CANCommGet逻辑
 #endif // GIMBAL_BOARD
     SubGetMessage(shoot_feed_sub, &shoot_fetch_data);
     SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
@@ -389,12 +437,16 @@ void RobotCMDTask()
     // 推送消息,双板通信,视觉通信等
     // 其他应用所需的控制数据在remotecontrolsetmode和mousekeysetmode中完成设置
 #ifdef ONE_BOARD
+    // 单板模式：发布完整的控制命令
     PubPushMessage(chassis_cmd_pub, (void *)&chassis_cmd_send);
 #endif // ONE_BOARD
+    
 #ifdef GIMBAL_BOARD
-    chassis_cmd_send.vx = 100;
-    CANCommSend(cmd_can_comm, (void *)&chassis_cmd_send);
+    // 双板模式：将完整的控制命令拆分为三个独立的结构体，并通过CAN发送
+    CANCommSend(cmd_can_comm3, (void *)&chassis_cmd_3send, CAN_DATA_MIXED);
 #endif // GIMBAL_BOARD
+    
+    // 发送给其他应用的控制消息
     PubPushMessage(shoot_cmd_pub, (void *)&shoot_cmd_send);
     PubPushMessage(gimbal_cmd_pub, (void *)&gimbal_cmd_send);
     VisionSend();

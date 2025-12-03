@@ -51,7 +51,7 @@ void GimbalInit()
             },
             .other_angle_feedback_ptr = &gimba_IMU_data->YawTotalAngle,
             .other_speed_feedback_ptr = &gimba_IMU_data->Gyro[2], //&rotate_compensator,
-            .speed_feedforward_ptr = &chassis_fetch_data.real_wz
+            .speed_feedforward_ptr = NULL
         },
         .controller_setting_init_config = {
             .angle_feedback_source = OTHER_FEED,

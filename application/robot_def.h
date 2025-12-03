@@ -141,6 +141,7 @@ typedef struct
  *
  */
 // cmd发布的底盘控制数据,由chassis订阅
+
 typedef struct
 {
     // 控制部分
@@ -156,6 +157,54 @@ typedef struct
     int bullet_speed;
     uint16_t cap_power;
 } Chassis_Ctrl_Cmd_s;
+
+typedef struct
+{
+    // 控制部分
+    float vx;           // 前进方向速度 Vx
+    float vy;           // 横移方向速度 Vy
+    // float wz;           // 旋转速度     w
+    // float offset_angle; // 底盘和归中位置的夹角
+    // chassis_mode_e chassis_mode;
+    // uint16_t chassis_power_limit; // 底盘功率限制,单位W
+    // // UI部分
+    // //  ...
+    // int friction_mode;
+    // int bullet_speed;
+    // uint16_t cap_power;
+} Chassis_Ctrl_Cmd_1s;
+
+typedef struct
+{
+    // 控制部分
+    // float vx;           // 前进方向速度 Vx
+    // float vy;           // 横移方向速度 Vy
+    float wz;           // 旋转速度     w
+    float offset_angle; // 底盘和归中位置的夹角
+    // chassis_mode_e chassis_mode;
+    // uint16_t chassis_power_limit; // 底盘功率限制,单位W
+    // // UI部分
+    // //  ...
+    // int friction_mode;
+    // int bullet_speed;
+    // uint16_t cap_power;
+} Chassis_Ctrl_Cmd_2s;
+
+typedef struct
+{
+    // 控制部分
+    // float vx;           // 前进方向速度 Vx
+    // float vy;           // 横移方向速度 Vy
+    // float wz;           // 旋转速度     w
+    // float offset_angle; // 底盘和归中位置的夹角
+    chassis_mode_e chassis_mode;
+    // uint16_t chassis_power_limit; // 底盘功率限制,单位W
+    // // UI部分
+    // //  ...
+    // int friction_mode;
+    // int bullet_speed;
+    // uint16_t cap_power;
+} Chassis_Ctrl_Cmd_3s;
 
 // cmd发布的云台控制数据,由gimbal订阅
 typedef struct
@@ -195,16 +244,6 @@ typedef struct
     // 后续增加底盘的真实速度
     // float real_vx;
     // float real_vy;
-    float real_wz;
-    float rest_heat;           // 剩余枪口热量
-    float motor_speed[HUBS_NUMBER]; // 电机速度
-    float motor_current[HUBS_NUMBER]; // 电机电流
-    uint8_t chassis_level;
-    uint16_t chassis_power_limit;
-    uint16_t chassis_power;
-    uint16_t chassis_cap_current;
-    Bullet_Speed_e bullet_speed; // 弹速限制
-    Enemy_Color_e enemy_color;   // 0 for blue, 1 for red
 } Chassis_Upload_Data_s;
 
 typedef struct

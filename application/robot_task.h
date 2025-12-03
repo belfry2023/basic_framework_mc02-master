@@ -5,7 +5,7 @@
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
-
+#include "gimbal.h"
 #include "robot.h"
 #include "ins_task.h"
 #include "motor_task.h"
@@ -35,10 +35,11 @@ void StartUITASK(void const *argument);
  */
 void OSTaskInit()
 {
+#if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
     osThreadDef(instask, StartINSTASK, osPriorityAboveNormal, 0, 1024);
     insTaskHandle = osThreadCreate(osThread(instask), NULL); // 由于是阻塞读取传感器,为姿态解算设置较高优先级,确保以1khz的频率执行
     // // 后续修改为读取传感器数据准备好的中断处理,
-
+#endif
     osThreadDef(motortask, StartMOTORTASK, osPriorityNormal, 0, 256);
     motorTaskHandle = osThreadCreate(osThread(motortask), NULL);
 
@@ -83,6 +84,9 @@ __attribute__((noreturn)) void StartMOTORTASK(void const *argument)
     {
         motor_start = DWT_GetTimeline_ms();
         MotorControlTask();
+        #ifdef GIMBAL_BOARD
+        chassisCANSendCommands();
+        #endif
         motor_dt = DWT_GetTimeline_ms() - motor_start;
         if (motor_dt > 1)
             LOGERROR("[freeRTOS] MOTOR Task is being DELAY! dt = [%f]", &motor_dt);

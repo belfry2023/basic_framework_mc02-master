@@ -10,6 +10,7 @@
 #include "referee_UI.h"
 #include "arm_math.h"
 #include "buzzer.h"
+
 /* 根据robot_def.h中的macro自动计算的参数 */
 #define HALF_WHEEL_BASE (WHEEL_BASE / 2.0f)     // 半轴距
 #define HALF_TRACK_WIDTH (TRACK_WIDTH / 2.0f)   // 半轮距
@@ -19,16 +20,22 @@
 #ifdef CHASSIS_BOARD // 如果是底盘板,使用板载IMU获取底盘转动角速度
 #include "can_comm.h"
 #include "ins_task.h"
-static CANCommInstance *chasiss_can_comm; // 双板通信CAN comm
-attitude_t *Chassis_IMU_data;
+static CANCommInstance *chasiss_can_comm1; // 用于接收vx, vy
+static CANCommInstance *chasiss_can_comm2; // 用于接收wz, offset_angle
+static CANCommInstance *chasiss_can_comm3; // 用于接收chassis_mode
+static Chassis_Ctrl_Cmd_1s chassis_cmd_1recv;         // 底盘接收到的x, y速度控制命令
+static Chassis_Ctrl_Cmd_2s chassis_cmd_2recv;         // 底盘接收到的z, offset_angle控制命令
+static Chassis_Ctrl_Cmd_3s chassis_cmd_3recv;         // 底盘接收到的控制模式命令
 #endif // CHASSIS_BOARD
-#ifdef ONE_BOARD
 
+#ifdef ONE_BOARD
 static Publisher_t *chassis_pub;                    // 用于发布底盘的数据
 static Subscriber_t *chassis_sub;                   // 用于订阅底盘的控制命令
-static Subscriber_t *chassis_power_sub;         // 用于订阅底盘的反馈数据
-#endif                                              // !ONE_BOARD
-static Chassis_Ctrl_Cmd_s chassis_cmd_recv;         // 底盘接收到的控制命令
+#endif // ONE_BOARD
+
+// 完整的控制命令（用于单板模式）
+static Chassis_Ctrl_Cmd_s chassis_cmd_recv;         // 底盘接收到的完整控制命令
+
 static Chassis_Power_Data_s chassis_power_recv;
 static Chassis_Upload_Data_s chassis_feedback_data; // 底盘回传的反馈数据
 
@@ -40,15 +47,6 @@ static DJIMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb; // left righ
 
 static PIDInstance chassis_follow_to_yaw_pid;
 static BuzzzerInstance *buzzerc;
-static Subscriber_t *gimbal_feed_sub;          // 云台反馈信息订阅者
-static Gimbal_Upload_Data_s gimbal_fetch_data; // 从云台获取的反馈信息
-
-/* 用于自旋变速策略的时间变量 */
-// static float t;
-
-/* 私有函数计算的中介变量,设为静态避免参数传递的开销 */
-static float chassis_vx, chassis_vy;     // 将云台系的速度投影到底盘
-static float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出,待进行限幅
 
 void ChassisInit()
 {
@@ -82,8 +80,7 @@ void ChassisInit()
         },
         .motor_type = M3508,
     };
-    //  @todo: 当前还没有设置电机的正反转,仍然需要手动添加reference的正负号,需要电机module的支持,待修改.
-
+    
     PID_Init_Config_s chassis_follow_to_yaw_config = {
         .Kp = 50,
         .Ki = 0,
@@ -115,118 +112,147 @@ void ChassisInit()
 
     referee_data = UITaskInit(&huart1, &ui_data); // 裁判系统初始化,会同时初始化UI
 
-    SuperCap_Init_Config_s cap_conf = {
-        .can_config = {
-            .can_handle = &hcan1,
-            .tx_id = 0x210, // 超级电容默认接收id
-            .rx_id = 0x211, // 超级电容默认发送id,注意tx和rx在其他人看来是反的
-        }};
-    cap = SuperCapInit(&cap_conf); // 超级电容初始化
-
-    // 发布订阅初始化,如果为双板,则需要can comm来传递消息
-#ifdef CHASSIS_BOARD
-    Chassis_IMU_data = INS_Init(); // 底盘IMU初始化
-
-    CANComm_Init_Config_s comm_conf = {
-        .can_config = {
-            .can_handle = &hcan2,
-            .tx_id = 0x311,
-            .rx_id = 0x312,
-        },
-        .recv_data_len = sizeof(Chassis_Ctrl_Cmd_s),
-        .send_data_len = sizeof(Chassis_Upload_Data_s),
-    };
-    chasiss_can_comm = CANCommInit(&comm_conf); // can comm初始化
-#endif                                          // CHASSIS_BOARD
-
+    // 初始化蜂鸣器
     Buzzer_config_s buzzer = {
         .alarm_level = ALARM_LEVEL_HIGH,
         .loudness = 0,
         .octave = OCTAVE_2,
     };
     buzzerc = BuzzerRegister(&buzzer);
+    
 #ifdef ONE_BOARD // 单板控制整车,则通过pubsub来传递消息
     chassis_sub = SubRegister("chassis_cmd", sizeof(Chassis_Ctrl_Cmd_s));
     chassis_power_sub = SubRegister("power_cmd", sizeof(Chassis_Power_Data_s));
     chassis_pub = PubRegister("chassis_feed", sizeof(Chassis_Upload_Data_s));
-    gimbal_feed_sub = SubRegister("gimbal_feed", sizeof(Gimbal_Upload_Data_s));
 #endif // ONE_BOARD
+    
+#ifdef CHASSIS_BOARD // 双板模式，使用CAN通信接收三个独立的结构体
+    // 初始化第一个CAN通信实例，用于接收vx, vy
+    CANComm_Init_Config_s comm_conf1 = {
+        .can_config = {
+            .can_handle = &hcan2,
+            .tx_id = 0x311,  // 底盘发送ID
+            .rx_id = 0x312,  // 接收云台发送的vx, vy数据
+        },
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_1s),
+    };
+    chasiss_can_comm1 = CANCommInit(&comm_conf1);
+    
+    // 初始化第二个CAN通信实例，用于接收wz, offset_angle
+    CANComm_Init_Config_s comm_conf2 = {
+        .can_config = {
+            .can_handle = &hcan2,
+            .tx_id = 0x311,  // 底盘发送ID
+            .rx_id = 0x313,  // 接收云台发送的wz, offset_angle数据
+        },
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_2s),
+    };
+    chasiss_can_comm2 = CANCommInit(&comm_conf2);
+    
+    // 初始化第三个CAN通信实例，用于接收chassis_mode
+    CANComm_Init_Config_s comm_conf3 = {
+        .can_config = {
+            .can_handle = &hcan2,
+            .tx_id = 0x311,  // 底盘发送ID
+            .rx_id = 0x314,  // 接收云台发送的chassis_mode数据
+        },
+        .target_struct_len = sizeof(Chassis_Ctrl_Cmd_3s),
+    };
+    chasiss_can_comm3 = CANCommInit(&comm_conf3);
+#endif // CHASSIS_BOARD
 }
 
 #define LF_CENTER ((HALF_TRACK_WIDTH + CENTER_GIMBAL_OFFSET_X + HALF_WHEEL_BASE - CENTER_GIMBAL_OFFSET_Y) * DEGREE_2_RAD)
 #define RF_CENTER ((HALF_TRACK_WIDTH - CENTER_GIMBAL_OFFSET_X + HALF_WHEEL_BASE - CENTER_GIMBAL_OFFSET_Y) * DEGREE_2_RAD)
 #define LB_CENTER ((HALF_TRACK_WIDTH + CENTER_GIMBAL_OFFSET_X + HALF_WHEEL_BASE + CENTER_GIMBAL_OFFSET_Y) * DEGREE_2_RAD)
 #define RB_CENTER ((HALF_TRACK_WIDTH - CENTER_GIMBAL_OFFSET_X + HALF_WHEEL_BASE + CENTER_GIMBAL_OFFSET_Y) * DEGREE_2_RAD)
+
 /**
  * @brief 计算每个轮毂电机的输出,正运动学解算
- *        用宏进行预替换减小开销,运动解算具体过程参考教程
  */
 static void MecanumCalculate()
 {
-    vt_lf = -chassis_vx - chassis_vy - chassis_cmd_recv.wz * LF_CENTER;
-    vt_rf = -chassis_vx + chassis_vy - chassis_cmd_recv.wz * RF_CENTER;
-    vt_lb = chassis_vx - chassis_vy - chassis_cmd_recv.wz * LB_CENTER;
-    vt_rb = chassis_vx + chassis_vy - chassis_cmd_recv.wz * RB_CENTER;
-}
-
-/**
- * @brief 根据裁判系统和电容剩余容量对输出进行限制并设置电机参考值
- *
- */
-static void LimitChassisOutput()
-{
-    // 功率限制待添加
-    // referee_data->PowerHeatData.chassis_power;
-    // referee_data->PowerHeatData.chassis_power_buffer;
-    uint16_t tempPower = chassis_power_recv.chassis_power_mx * 100;
-    uint8_t data[8];
-    data[0] = tempPower >> 8 ;
-    data[1] = tempPower;
-    SuperCapSend(cap, data);
-    motor_lf->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[0];
-    motor_rf->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[1];
-    motor_lb->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[2];
-    motor_rb->motor_controller.current_PID.MaxOut = chassis_power_recv.motor_current_up[3];
-    motor_lf->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[0];
-    motor_rf->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[1];
-    motor_lb->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[2];
-    motor_rb->motor_controller.current_PID.MaxOut_ = chassis_power_recv.motor_current_down[3];
-    // 完成功率限制后进行电机参考输入设定
+    float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出
+    
+    vt_lf = -chassis_cmd_recv.vx - chassis_cmd_recv.vy - chassis_cmd_recv.wz * LF_CENTER;
+    vt_rf = -chassis_cmd_recv.vx + chassis_cmd_recv.vy - chassis_cmd_recv.wz * RF_CENTER;
+    vt_lb = chassis_cmd_recv.vx - chassis_cmd_recv.vy - chassis_cmd_recv.wz * LB_CENTER;
+    vt_rb = chassis_cmd_recv.vx + chassis_cmd_recv.vy - chassis_cmd_recv.wz * RB_CENTER;
+    
     DJIMotorSetRef(motor_lf, vt_lf);
     DJIMotorSetRef(motor_rf, vt_rf);
     DJIMotorSetRef(motor_lb, vt_lb);
     DJIMotorSetRef(motor_rb, vt_rb);
-
 }
 
 /**
- * @brief 根据每个轮子的速度反馈,计算底盘的实际运动速度,逆运动解算
- *        对于双板的情况,考虑增加来自底盘板IMU的数据
- *
+ * @brief 根据控制模式设定旋转速度
  */
-static void EstimateSpeed()
+static void UpdateChassisWZ()
 {
-    // 根据电机速度和陀螺仪的角速度进行解算,还可以利用加速度计判断是否打滑(如果有)
-    // chassis_feedback_data.vx vy wz =
-    //  ...
+    switch (chassis_cmd_recv.chassis_mode)
+    {
+    case CHASSIS_NO_FOLLOW: // 底盘不旋转,但维持全向机动
+        chassis_cmd_recv.wz = 0;
+        break;
+    case CHASSIS_FOLLOW_GIMBAL_YAW: // 跟随云台
+        // 这里可以根据offset_angle计算wz，需要云台角度反馈
+        // 当前简单实现为固定值，实际应使用PID控制
+        chassis_cmd_recv.wz = 1000; // 示例值
+        break;
+    case CHASSIS_ROTATE: // 自旋
+        chassis_cmd_recv.wz = 4000; // 示例值
+        break;
+    default:
+        chassis_cmd_recv.wz = 0;
+        break;
+    }
+}
+
+/**
+ * @brief 合并三个独立的控制命令为一个完整的控制命令
+ */
+static void MergeChassisCommands()
+{
+#ifdef CHASSIS_BOARD
+    // 从CAN通信实例获取三个独立的结构体
+    if (CANCommGet(chasiss_can_comm1, CAN_DATA_MIXED, &chassis_cmd_1recv))
+    {
+        chassis_cmd_recv.vx = chassis_cmd_1recv.vx;
+        chassis_cmd_recv.vy = chassis_cmd_1recv.vy;
+    }
+    
+    if (CANCommGet(chasiss_can_comm2, CAN_DATA_MIXED, &chassis_cmd_2recv))
+    {
+        chassis_cmd_recv.wz = chassis_cmd_2recv.wz;
+        chassis_cmd_recv.offset_angle = chassis_cmd_2recv.offset_angle;
+    }
+    
+    if (CANCommGet(chasiss_can_comm3, CAN_DATA_MIXED, &chassis_cmd_3recv))
+    {
+        chassis_cmd_recv.chassis_mode = chassis_cmd_3recv.chassis_mode;
+    }
+#endif // CHASSIS_BOARD
 }
 
 /* 机器人底盘控制核心任务 */
 void ChassisTask()
 {
-    // 后续增加没收到消息的处理(双板的情况)
-    // 获取新的控制信息
+    // 获取控制信息
 #ifdef ONE_BOARD
+    // 单板模式：从发布-订阅系统获取完整控制命令
     SubGetMessage(chassis_sub, &chassis_cmd_recv);
     SubGetMessage(chassis_power_sub, &chassis_power_recv);
-    SubGetMessage(gimbal_feed_sub, &gimbal_fetch_data);
-#endif
+#endif // ONE_BOARD
+
 #ifdef CHASSIS_BOARD
-    chassis_cmd_recv = *(Chassis_Ctrl_Cmd_s *)CANCommGet(chasiss_can_comm);
+    // 双板模式：从CAN通信获取三个独立结构体并合并
+    MergeChassisCommands();
 #endif // CHASSIS_BOARD
 
+    // 急停处理
     if (chassis_cmd_recv.chassis_mode == CHASSIS_ZERO_FORCE)
-    { // 如果出现重要模块离线或遥控器设置为急停,让电机停止
+    {
         DJIMotorStop(motor_lf);
         DJIMotorStop(motor_rf);
         DJIMotorStop(motor_lb);
@@ -234,98 +260,43 @@ void ChassisTask()
         buzzerc->alarm_state = ALARM_ON;
     }
     else
-    { // 正常工作
+    {
         DJIMotorEnable(motor_lf);
         DJIMotorEnable(motor_rf);
         DJIMotorEnable(motor_lb);
         DJIMotorEnable(motor_rb);
-        // DJIMotorEnablePower(motor_lf);
-        // DJIMotorEnablePower(motor_rf);
-        // DJIMotorEnablePower(motor_lb);
-        // DJIMotorEnablePower(motor_rb);
         buzzerc->alarm_state = ALARM_OFF;
     }
 
-    // 根据控制模式设定旋转速度
-    switch (chassis_cmd_recv.chassis_mode)
-    {
-    case CHASSIS_NO_FOLLOW: // 底盘不旋转,但维持全向机动,一般用于调整云台姿态
-        chassis_cmd_recv.wz = 0;
-        break;
-    case CHASSIS_FOLLOW_GIMBAL_YAW: // 跟随云台,不单独设置pid,以误差角度平方为速度输出
-        // chassis_cmd_recv.wz = -1.5 * chassis_cmd_recv.offset_angle * abs(chassis_cmd_recv.offset_angle) - REAL_WZ_RAT*gimbal_fetch_data.gimbal_imu_data.Gyro[2];
-        chassis_cmd_recv.wz = PIDCalculate(&chassis_follow_to_yaw_pid, chassis_cmd_recv.offset_angle, 0) - 0.5 * REAL_WZ_RAT * gimbal_fetch_data.gimbal_imu_data.Gyro[2];
-        break;
-    case CHASSIS_ROTATE: // 自旋,同时保持全向机动;当前wz维持定值,后续增加不规则的变速策略
-        chassis_cmd_recv.wz = 4000;
-        break;
-    default:
-        break;
-    }
+    // 根据控制模式更新wz
+    UpdateChassisWZ();
 
     // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
-    // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系(x指向正北时y在正东)
     static float sin_theta, cos_theta;
+    float chassis_vx, chassis_vy;
+    
     cos_theta = arm_cos_f32(chassis_cmd_recv.offset_angle * DEGREE_2_RAD);
     sin_theta = arm_sin_f32(chassis_cmd_recv.offset_angle * DEGREE_2_RAD);
     chassis_vx = chassis_cmd_recv.vx * cos_theta - chassis_cmd_recv.vy * sin_theta;
     chassis_vy = chassis_cmd_recv.vx * sin_theta + chassis_cmd_recv.vy * cos_theta;
+    
+    // 更新控制命令中的vx, vy为底盘坐标系下的值
+    chassis_cmd_recv.vx = chassis_vx;
+    chassis_cmd_recv.vy = chassis_vy;
 
-    // 根据控制模式进行正运动学解算,计算底盘输出
+    // 进行正运动学解算，计算底盘输出
     MecanumCalculate();
 
-    // 根据裁判系统的反馈数据和电容数据对输出限幅并设定闭环参考值
-    LimitChassisOutput();
-
-    // 根据电机的反馈速度和IMU(如果有)计算真实速度
-    EstimateSpeed();
-
-    // // 获取裁判系统数据   建议将裁判系统与底盘分离，所以此处数据应使用消息中心发送
-    // // 我方颜色id小于7是红色,大于7是蓝色,注意这里发送的是对方的颜色, 0:blue , 1:red
-    // chassis_feedback_data.enemy_color = referee_data->GameRobotState.robot_id > 7 ? 1 : 0;
-    // // 当前只做了17mm热量的数据获取,后续根据robot_def中的宏切换双枪管和英雄42mm的情况
-    // chassis_feedback_data.bullet_speed = referee_data->GameRobotState.shooter_id1_17mm_speed_limit;
-    // chassis_feedback_data.rest_heat = referee_data->PowerHeatData.shooter_heat0;
-
+    // 更新UI数据
     ui_data.chassis_mode = chassis_cmd_recv.chassis_mode;
-    ui_data.friction_mode = chassis_cmd_recv.friction_mode;
-    ui_data.bullet_speed = chassis_cmd_recv.bullet_speed;
-    float_uint16_t temp;
-    temp.f[0] = cap->cap_msg.cvol;
-    ui_data.Chassis_Power_Data.chassis_power_mx = (temp.u[1]-16256)/24;
 
-    //referee_data->GameRobotState.robot_id
-    //referee_data->GameRobotState.robot_level
-    //referee_data->GameRobotState.shooter_barrel_heat_limit
-    //referee_data->PowerHeatData.shooter_17mm_1_barrel_heat
-
-    chassis_feedback_data.rest_heat = (referee_data->GameRobotState.shooter_barrel_heat_limit - referee_data->PowerHeatData.shooter_17mm_1_barrel_heat) / referee_data->GameRobotState.shooter_barrel_heat_limit;
-
-    chassis_feedback_data.chassis_level = referee_data->GameRobotState.robot_level;
-    chassis_feedback_data.chassis_power_limit = referee_data->GameRobotState.chassis_power_limit;
-
-    chassis_feedback_data.chassis_level = 1;
-    chassis_feedback_data.chassis_power_limit = 45; // 20A
-
-    chassis_feedback_data.chassis_power = cap->cap_msg.power;
-    chassis_feedback_data.chassis_cap_current = cap->cap_msg.current;
-
-    chassis_feedback_data.motor_speed[0] = motor_lf->measure.speed_aps / 6;
-    chassis_feedback_data.motor_speed[1] = motor_rf->measure.speed_aps / 6;
-    chassis_feedback_data.motor_speed[2] = motor_lb->measure.speed_aps / 6;
-    chassis_feedback_data.motor_speed[3] = motor_rb->measure.speed_aps / 6;
-
-    chassis_feedback_data.motor_current[0] = motor_lf->measure.real_current;
-    chassis_feedback_data.motor_current[1] = motor_rf->measure.real_current;
-    chassis_feedback_data.motor_current[2] = motor_lb->measure.real_current;
-    chassis_feedback_data.motor_current[3] = motor_rb->measure.real_current;
-
-    chassis_feedback_data.real_wz = chassis_cmd_recv.wz / REAL_WZ_RAT;
     // 推送反馈消息
 #ifdef ONE_BOARD
     PubPushMessage(chassis_pub, (void *)&chassis_feedback_data);
-#endif
+#endif // ONE_BOARD
+
 #ifdef CHASSIS_BOARD
-    CANCommSend(chasiss_can_comm, (void *)&chassis_feedback_data);
+    // 如果需要向云台板发送反馈数据，可以在这里添加
+    // 注意：需要为每个反馈数据类型创建独立的CAN通信实例
 #endif // CHASSIS_BOARD
 }
