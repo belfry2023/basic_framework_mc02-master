@@ -394,13 +394,14 @@ static void EmergencyHandler()
 
 void chassisCANSendCommands()
 {   
+    #ifdef GIMBAL_BOARD
     // 1. 首先拆分控制命令
     SplitChassisCommands();
     
     // 2. 通过两个独立的CAN实例发送两个结构体
     CANCommSend(cmd_can_comm1, (void *)&chassis_cmd_1send, CAN_DATA_MIXED);
     CANCommSend(cmd_can_comm2, (void *)&chassis_cmd_2send, CAN_DATA_MIXED);
-    
+    #endif
 }
 
 /* 机器人核心控制任务,200Hz频率运行(必须高于视觉发送频率) */

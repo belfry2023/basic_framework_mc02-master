@@ -11,7 +11,6 @@
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
 #include "chassis.h"
-#include "chassis_power_control.h"
 #endif
 
 #if defined(ONE_BOARD) || defined(GIMBAL_BOARD)
@@ -38,7 +37,6 @@ void RobotInit()
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     ChassisInit();
-    chassis_power_control_init(); // 初始化功率控制
     //balance_init();
 #endif
 
@@ -58,7 +56,6 @@ void RobotTask()
 
 #if defined(ONE_BOARD) || defined(CHASSIS_BOARD)
     ChassisTask();
-    chassis_power_control(); // 功率控制任务,在底盘任务后调用
 #endif
 
 }
