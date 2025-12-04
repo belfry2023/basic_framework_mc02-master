@@ -65,7 +65,7 @@ void GimbalInit()
     // PITCH
     Motor_Init_Config_s pitch_config = {
         .can_init_config = {
-            .can_handle = &hcan1,
+            .can_handle = &hcan2,
             .tx_id = 4,
         },   
         .controller_param_init_config = {

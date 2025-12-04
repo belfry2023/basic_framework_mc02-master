@@ -100,7 +100,7 @@ void RobotCMDInit()
         .can_config = {
             .can_handle = &hcan1,
             .tx_id = 0x313,  // 云台板发送ID（wz, offset_angle）
-            .rx_id = 0x311,  // 接收底盘反馈（如果需要）
+            .rx_id = 0x315,  // 接收底盘反馈（如果需要）
         },
         .target_struct_len = sizeof(Chassis_Ctrl_Cmd_2s),
     };
@@ -111,7 +111,7 @@ void RobotCMDInit()
         .can_config = {
             .can_handle = &hcan1,
             .tx_id = 0x314,  // 云台板发送ID（控制模式等）
-            .rx_id = 0x311,  // 接收底盘反馈（如果需要）
+            .rx_id = 0x316,  // 接收底盘反馈（如果需要）
         },
         .target_struct_len = sizeof(Chassis_Ctrl_Cmd_3s),
     };

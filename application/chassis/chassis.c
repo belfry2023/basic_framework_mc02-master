@@ -140,7 +140,7 @@ void ChassisInit()
     CANComm_Init_Config_s comm_conf2 = {
         .can_config = {
             .can_handle = &hcan2,
-            .tx_id = 0x311,  // 底盘发送ID
+            .tx_id = 0x315,  // 底盘发送ID
             .rx_id = 0x313,  // 接收云台发送的wz, offset_angle数据
         },
         .target_struct_len = sizeof(Chassis_Ctrl_Cmd_2s),
@@ -151,7 +151,7 @@ void ChassisInit()
     CANComm_Init_Config_s comm_conf3 = {
         .can_config = {
             .can_handle = &hcan2,
-            .tx_id = 0x311,  // 底盘发送ID
+            .tx_id = 0x316,  // 底盘发送ID
             .rx_id = 0x314,  // 接收云台发送的chassis_mode数据
         },
         .target_struct_len = sizeof(Chassis_Ctrl_Cmd_3s),

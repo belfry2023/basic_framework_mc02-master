@@ -50,12 +50,6 @@ CANCommInstance *CANCommInit(CANComm_Init_Config_s *comm_config)
     ins->tx_id = comm_config->tx_id;
     ins->target_struct_len = comm_config->target_struct_len;
     
-    // 为target_struct分配内存
-    if (comm_config->target_struct_len > 0)
-    {
-        ins->target_struct = malloc(comm_config->target_struct_len);
-        memset(ins->target_struct, 0, comm_config->target_struct_len);
-    }
     
     // 保存数据更新回调
     if (comm_config->data_update_callback != NULL)
@@ -66,7 +60,7 @@ CANCommInstance *CANCommInit(CANComm_Init_Config_s *comm_config)
     // 设置CAN实例
     comm_config->can_config.id = ins;
     comm_config->can_config.can_module_callback = CANCommRxCallback;
-    comm_config->can_config.rx_id = comm_config->rx_id;  // 设置接收ID
+    // comm_config->can_config.rx_id = comm_config->rx_id;  // 设置接收ID
     
     ins->can_ins = CANRegister(&comm_config->can_config);
     
@@ -81,7 +75,7 @@ CANCommInstance *CANCommInit(CANComm_Init_Config_s *comm_config)
  */
 void CANCommSend(CANCommInstance *instance, void *data, CANDataType data_type)
 {
-    if (instance->tx_id == 0)
+    if (instance->can_ins->id == 0)
     {
         LOGERROR("[can_comm] TX ID not set!");
         return;
@@ -114,7 +108,7 @@ void CANCommSend(CANCommInstance *instance, void *data, CANDataType data_type)
     }
     
     // 设置发送ID
-    instance->can_ins->tx_id = instance->tx_id;
+    // instance->can_ins->tx_id = instance->tx_id;
     
     // 将数据拷贝到CAN发送缓冲区
     memcpy(instance->can_ins->tx_buff, send_union.bytes, 8);

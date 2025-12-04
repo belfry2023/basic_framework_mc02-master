@@ -48,7 +48,7 @@ typedef struct {
     
     // 数据转换
     CANDataUnion data_union;       // 数据联合体，用于转换
-    void *target_struct;           // 目标结构体指针
+    uint8_t target_struct[8];           // 目标结构体指针
     uint8_t target_struct_len;     // 目标结构体长度
     
     // 状态标志
