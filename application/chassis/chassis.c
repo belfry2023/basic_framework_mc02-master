@@ -9,7 +9,7 @@
 #include "referee_UI.h"
 #include "arm_math.h"
 #include "buzzer.h"
-
+#include "CAN_supercap_communication.h"
 /* 根据robot_def.h中的macro自动计算的参数 */
 #define HALF_WHEEL_BASE (WHEEL_BASE / 2.0f)     // 半轴距
 #define HALF_TRACK_WIDTH (TRACK_WIDTH / 2.0f)   // 半轮距
@@ -45,9 +45,12 @@ static DJIMotorInstance *motor_lf, *motor_rf, *motor_lb, *motor_rb; // left righ
 
 static PIDInstance chassis_follow_to_yaw_pid;
 static BuzzzerInstance *buzzerc;
-
+static SuperCap_s *supercap;
 void ChassisInit()
 {
+    supercap = SuperCapInit(&hcan1);
+    supercap->TX_Temp.Enable = DISABLE;
+    supercap->TX_Temp.Powerlimit = 45;
     // 四个轮子的参数一样,改tx_id和反转标志位即可
     Motor_Init_Config_s chassis_motor_config = {
         .can_init_config.can_handle = &hcan1,
@@ -92,11 +95,11 @@ void ChassisInit()
 
     PIDInit(&chassis_follow_to_yaw_pid, &chassis_follow_to_yaw_config);
 
-    chassis_motor_config.can_init_config.tx_id = 2;
+    chassis_motor_config.can_init_config.tx_id = 1;
     chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_lf = DJIMotorInit(&chassis_motor_config);
 
-    chassis_motor_config.can_init_config.tx_id = 1;
+    chassis_motor_config.can_init_config.tx_id = 2;
     chassis_motor_config.controller_setting_init_config.motor_reverse_flag = MOTOR_DIRECTION_REVERSE;
     motor_rf = DJIMotorInit(&chassis_motor_config);
 
@@ -170,12 +173,30 @@ void ChassisInit()
  */
 static void MecanumCalculate()
 {
+    supercap->TX_Temp.Enable = ENABLE;
+    supercap->TX_Temp.Powerlimit = 45;
+    SuperCapSend(supercap);
     float vt_lf, vt_rf, vt_lb, vt_rb; // 底盘速度解算后的临时输出
     
-    vt_lf = -chassis_cmd_recv.vx - chassis_cmd_recv.vy - chassis_cmd_recv.wz * LF_CENTER;
-    vt_rf = -chassis_cmd_recv.vx + chassis_cmd_recv.vy - chassis_cmd_recv.wz * RF_CENTER;
-    vt_lb = chassis_cmd_recv.vx - chassis_cmd_recv.vy - chassis_cmd_recv.wz * LB_CENTER;
-    vt_rb = chassis_cmd_recv.vx + chassis_cmd_recv.vy - chassis_cmd_recv.wz * RB_CENTER;
+    // 逆运动学（麦克纳姆轮）计算每个轮子的目标速度（电机设定量）
+    // 公式来源：底盘速度在轮子方向上的投影 + 围绕质心的角速度导致的线速度分量
+    // 负号及坐标符号与电机安装方向/坐标系约定有关（与 MOTOR_DIRECTION_REVERSE 一起使用）
+    // LF_CENTER / RF_CENTER / LB_CENTER / RB_CENTER 为对应轮子相对于质心的角半径（已乘以角度到弧度的转换）
+    vt_lf = -chassis_cmd_recv.vx      // x 方向线速度对左前轮的投影（前进为正时的贡献）
+            - chassis_cmd_recv.vy     // y 方向线速度对左前轮的投影（右移为正时的贡献）
+            - chassis_cmd_recv.wz * LF_CENTER; // 角速度导致的切向速度（绕质心逆时针为正）
+
+    vt_rf = -chassis_cmd_recv.vx      // 右前轮 x 分量
+            + chassis_cmd_recv.vy     // 右前轮 y 分量（与左前相反）
+            - chassis_cmd_recv.wz * RF_CENTER; // 角速度切向分量
+
+    vt_lb =  chassis_cmd_recv.vx      // 左后轮 x 分量（符号与前轮可能不同，取决于坐标约定）
+            - chassis_cmd_recv.vy     // 左后轮 y 分量
+            - chassis_cmd_recv.wz * LB_CENTER; // 角速度切向分量
+
+    vt_rb =  chassis_cmd_recv.vx      // 右后轮 x 分量
+            + chassis_cmd_recv.vy     // 右后轮 y 分量
+            - chassis_cmd_recv.wz * RB_CENTER; // 角速度切向分量
     
     DJIMotorSetRef(motor_lf, vt_lf);
     DJIMotorSetRef(motor_rf, vt_rf);

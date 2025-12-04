@@ -91,7 +91,7 @@ typedef struct
     float *other_speed_feedback_ptr;
     float *speed_feedforward_ptr;
     float *current_feedforward_ptr;
-
+    
     PIDInstance current_PID;
     PIDInstance speed_PID;
     PIDInstance angle_PID;

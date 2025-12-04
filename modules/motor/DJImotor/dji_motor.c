@@ -262,6 +262,7 @@ void DJIMotorOuterLoop(DJIMotorInstance *motor, Closeloop_Type_e outer_loop)
     motor->motor_settings.outer_loop_type = outer_loop;
 }
 
+
 // 设置参考值
 void DJIMotorSetRef(DJIMotorInstance *motor, float ref)
 {
